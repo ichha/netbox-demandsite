@@ -13,6 +13,27 @@ from django.contrib.contenttypes.models import ContentType
 
 logger = logging.getLogger('netbox.plugins.netbox_demandsite')
 
+def clean_palika_name(name):
+    if not name or name == '—':
+        return ''
+    name_str = str(name).strip()
+    # Suffixes to strip case-insensitively
+    suffixes = [
+        "Mahanagarpalika", "Mahanagarpalika",
+        "Submahanagarpalika", "Submahanagarpalika",
+        "Nagarpalika", "Nagarpalika",
+        "Gaupalika", "Rural Municipality", "Municipality",
+        "VDC"
+    ]
+    for suffix in suffixes:
+        suffix_len = len(suffix)
+        if len(name_str) > suffix_len and name_str.lower().endswith(suffix.lower()):
+            name_str = name_str[:-suffix_len].strip()
+            # Also clean trailing underscores or spaces
+            name_str = name_str.rstrip('_').strip()
+            break
+    return name_str
+
 def get_cf_key(site, keywords):
     """
     Finds a custom field name registered for the Site model
@@ -241,6 +262,13 @@ def sync_one_site(netbox_site, api_site, cf_name):
         netbox_site.status = 'planned'
         updated = True
 
+    # 2.2. Sync Site Name from API
+    api_name = api_site.get('sitename') or api_site.get('sitename2') or api_site.get('sitename1')
+    if api_name and api_name != '—':
+        if netbox_site.name != api_name:
+            netbox_site.name = api_name
+            updated = True
+
     # 2.5. Sync Region/Province
     api_province = api_site.get('province')
     siteid = api_site.get('siteid')
@@ -297,12 +325,7 @@ def sync_one_site(netbox_site, api_site, cf_name):
             
     if local_level_name_key and api_site.get('palika'):
         val = api_site.get('palika')
-        
-        # Specific rule: Kathmandu Mahanagarpalika -> Kathmandu
-        val_clean = str(val).strip()
-        if val_clean.upper() == "KATHMANDU MAHANAGARPALIKA":
-            val_clean = "Kathmandu"
-            
+        val_clean = clean_palika_name(val)
         choice_key = get_choice_key_for_label(local_level_name_key, val_clean)
         
         # Compare first word only to see if they already match
@@ -505,6 +528,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
             local_level_diff = False
             ward_diff = False
             status_diff = False
+            name_diff = False
             
             if not matched_site:
                 has_mismatch = True
@@ -528,6 +552,13 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 lon_diff = False
                 status_diff = False
                 cf_diff = False
+                name_diff = False
+                
+                # Check site name mismatch
+                api_name = item.get('sitename') or item.get('sitename2') or item.get('sitename1') or '—'
+                if api_name and api_name != '—' and nb_data['name'] != api_name:
+                    name_diff = True
+                    cf_diff = True
                 
                 api_lat = item.get('latitude')
                 api_lon = item.get('longitude')
@@ -576,12 +607,13 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 if district_key and item.get('district') and nb_data['district'] != item.get('district'):
                     district_diff = True
                     cf_diff = True
-                # Local level name: compare first word only
-                # e.g. "Kathmandu Mahanagarpalika" (API) vs "Kathmandu" (NetBox) => match
+                # Local level name: compare first word of cleaned palika names
                 palika_diff = False
                 if local_level_name_key and item.get('palika'):
-                    api_palika_first = str(item.get('palika', '')).strip().split()[0] if item.get('palika') else ''
-                    nb_palika_first = str(nb_data['local_level_name']).strip().split()[0] if nb_data['local_level_name'] else ''
+                    api_palika_clean = clean_palika_name(item.get('palika'))
+                    nb_palika_clean = clean_palika_name(nb_data['local_level_name'])
+                    api_palika_first = api_palika_clean.split()[0] if api_palika_clean else ''
+                    nb_palika_first = nb_palika_clean.split()[0] if nb_palika_clean else ''
                     if api_palika_first.lower() != nb_palika_first.lower():
                         palika_diff = True
                         cf_diff = True
@@ -643,6 +675,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 'local_level_diff': local_level_diff,
                 'ward_diff': ward_diff,
                 'status_diff': status_diff,
+                'name_diff': name_diff,
             })
             
         # Pagination

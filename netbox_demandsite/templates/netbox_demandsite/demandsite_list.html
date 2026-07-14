@@ -336,7 +336,7 @@
                             </td>
                             
                             <!-- Name -->
-                            <td class="{% if site.netbox_site and site.api_data.sitename != site.nb_data.name %}cell-mismatch{% endif %}">
+                            <td class="{% if site.name_diff %}cell-mismatch{% endif %}">
                                 {% if site.netbox_site %}
                                     <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="fw-bold text-decoration-none">
                                         {{ site.nb_data.name }} <i class="mdi mdi-open-in-new small text-muted"></i>
