@@ -1,41 +1,12 @@
 {% extends 'base/layout.html' %}
 {% load helpers %}
 
-{% block title %}Demandsite Correlation Table{% endblock %}
+{% block title %}Demandsite Correlation Dashboard{% endblock %}
 
 {% block content %}
 
-<!-- Custom Styles matching Excel Mockup -->
+<!-- Custom Styles matching mockup and premium Bootstrap -->
 <style>
-    .excel-stats-table {
-        margin-bottom: 20px;
-        width: auto;
-    }
-    .excel-stats-table td {
-        padding: 8px 16px;
-        border: 1px solid #d1d1d1;
-        font-size: 14px;
-        font-weight: bold;
-    }
-    .excel-stats-label {
-        background-color: #f2f2f2;
-        color: #333333;
-        text-align: right;
-    }
-    .excel-stats-value {
-        background-color: #ffffff;
-        color: #000000;
-        text-align: left;
-        min-width: 80px;
-    }
-    .excel-stats-mismatch-label {
-        background-color: #fce4d6;
-        color: #c00000;
-    }
-    .excel-stats-mismatch-value {
-        color: #c00000;
-        background-color: #ffffff;
-    }
     .excel-table {
         border-collapse: collapse;
         width: 100%;
@@ -71,7 +42,7 @@
 </style>
 
 <!-- Top Actions & Search -->
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <!-- Search Bar -->
     <form method="get" action="" class="d-flex" style="max-width: 400px; width: 100%;">
         <div class="input-group">
@@ -91,17 +62,33 @@
     <h3 class="mb-0 fw-bold">Demandsite Comparison Dashboard</h3>
 </div>
 
-<!-- Stats Block at the Top matching Mockup -->
-<table class="excel-stats-table">
-    <tr>
-        <td class="excel-stats-label">Total API Sites</td>
-        <td class="excel-stats-value">{{ total_api_sites }}</td>
-        <td class="excel-stats-label">Total Netbox</td>
-        <td class="excel-stats-value">{{ total_netbox }}</td>
-        <td class="excel-stats-label excel-stats-mismatch-label">Mismatch</td>
-        <td class="excel-stats-value excel-stats-mismatch-value">{{ total_mismatch }}</td>
-    </tr>
-</table>
+<!-- Premium Stat Cards from First Version -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-light text-center border-0 shadow-sm h-100 py-2">
+            <div class="card-body">
+                <h6 class="text-uppercase text-muted mb-1">Total API Sites</h6>
+                <h2 class="display-6 fw-bold mb-0 text-dark">{{ total_api_sites }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-light text-center border-0 shadow-sm h-100 py-2">
+            <div class="card-body">
+                <h6 class="text-uppercase text-muted mb-1">Total Netbox</h6>
+                <h2 class="display-6 fw-bold mb-0 text-success">{{ total_netbox }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-light text-center border-0 shadow-sm h-100 py-2">
+            <div class="card-body">
+                <h6 class="text-uppercase text-muted mb-1">Mismatch</h6>
+                <h2 class="display-6 fw-bold mb-0 text-danger">{{ total_mismatch }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Main Twin-Row Comparison Table -->
 <div class="card shadow-sm border-0">
@@ -127,8 +114,12 @@
                 </thead>
                 <tbody>
                     {% for site in correlated_sites %}
-                        <!-- Row 1: API Data -->
-                        <tr class="{% if forloop.counter|divisibleby:2 %}row-pair-even{% else %}row-pair-odd{% endif %}">
+                        <!-- Alternate row-pair colors -->
+                        {% if forloop.counter|divisibleby:2 %}
+                            <tr class="row-pair-even">
+                        {% else %}
+                            <tr class="row-pair-odd">
+                        {% endif %}
                             <td class="excel-source-label">API Data</td>
                             <td class="font-monospace fw-bold">{{ site.api_data.siteid }}</td>
                             <td>{{ site.api_data.sitename }}</td>
@@ -170,13 +161,17 @@
                         </tr>
 
                         <!-- Row 2: Netbox -->
-                        <tr class="{% if forloop.counter|divisibleby:2 %}row-pair-even{% else %}row-pair-odd{% endif %}">
+                        {% if forloop.counter|divisibleby:2 %}
+                            <tr class="row-pair-even">
+                        {% else %}
+                            <tr class="row-pair-odd">
+                        {% endif %}
                             <td class="excel-source-label">Netbox</td>
-                            <!-- Highlight cell in red if Site ID differs or is missing -->
+                            <!-- Site ID -->
                             <td class="font-monospace {% if not site.netbox_site %}excel-mismatch-cell{% endif %}">
                                 {{ site.nb_data.site_id }}
                             </td>
-                            <!-- Highlight name if mismatch -->
+                            <!-- Name -->
                             <td class="{% if site.netbox_site and site.api_data.sitename != site.nb_data.name %}excel-mismatch-cell{% endif %}">
                                 {% if site.netbox_site %}
                                     <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="fw-bold">
@@ -186,7 +181,7 @@
                                     —
                                 {% endif %}
                             </td>
-                            <!-- Province/Region -->
+                            <!-- Region -->
                             <td class="{% if site.netbox_site and site.api_data.province != site.nb_data.region %}excel-mismatch-cell{% endif %}">
                                 {{ site.nb_data.region }}
                             </td>
@@ -226,7 +221,7 @@
                                     {{ site.nb_data.status }}
                                 {% endif %}
                             </td>
-                            <!-- Devices comma-separated -->
+                            <!-- Devices -->
                             <td>
                                 {{ site.nb_data.devices }}
                             </td>

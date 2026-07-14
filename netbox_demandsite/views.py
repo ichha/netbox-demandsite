@@ -51,6 +51,53 @@ def get_site_id_cf_name():
                     return key
     return 'site_id'
 
+def build_cf_choices_map():
+    """
+    Builds a dictionary mapping (field_name, raw_value) -> display_label
+    for all custom field choices in NetBox.
+    """
+    choices_map = {}
+    for cf in CustomField.objects.all():
+        if cf.choice_set:
+            # 1. Parse extra_choices
+            extra = getattr(cf.choice_set, 'extra_choices', None)
+            if extra and isinstance(extra, list):
+                for item in extra:
+                    if isinstance(item, dict):
+                        val = item.get('value')
+                        label = item.get('label')
+                        if val is not None and label is not None:
+                            choices_map[(cf.name.lower(), str(val))] = label
+                    elif isinstance(item, (list, tuple)) and len(item) >= 2:
+                        choices_map[(cf.name.lower(), str(item[0]))] = item[1]
+                    elif isinstance(item, str):
+                        choices_map[(cf.name.lower(), item)] = item
+            
+            # 2. Parse choices relation if available
+            choices_rel = getattr(cf.choice_set, 'choices', None)
+            if choices_rel and hasattr(choices_rel, 'all'):
+                try:
+                    for choice_obj in choices_rel.all():
+                        val = getattr(choice_obj, 'value', None)
+                        label = getattr(choice_obj, 'label', None)
+                        if val is not None and label is not None:
+                            choices_map[(cf.name.lower(), str(val))] = label
+                except Exception:
+                    pass
+    return choices_map
+
+def resolve_cf_display(cf_name, val, choices_map):
+    """
+    Returns the human-readable display label for a custom field choice.
+    Defaults to the raw value if no match is found.
+    """
+    if val is None:
+        return '—'
+    label = choices_map.get((cf_name.lower(), str(val)))
+    if label:
+        return label
+    return str(val)
+
 def sync_one_site(netbox_site, api_site, cf_name):
     """
     Synchronizes standard fields and all custom fields (District, Palika, Ward)
@@ -108,24 +155,43 @@ def sync_one_site(netbox_site, api_site, cf_name):
         local_level_type_key = None
     ward_key = get_cf_key(netbox_site, ['ward'])
     
+    # Selection fields require finding the correct choice key corresponding to the label
+    choices_map = build_cf_choices_map()
+    
+    def get_choice_key_for_label(cf_name, label):
+        # Look for the choice key corresponding to the display label
+        for (name, key), lbl in choices_map.items():
+            if name.lower() == cf_name.lower() and str(lbl).strip().upper() == str(label).strip().upper():
+                return key
+        return label # fallback to direct value if no matching selection choice is found
+
     if district_key and api_site.get('district'):
         val = api_site.get('district')
-        if netbox_site.custom_field_data.get(district_key) != val:
-            netbox_site.custom_field_data[district_key] = val
+        choice_key = get_choice_key_for_label(district_key, val)
+        if netbox_site.custom_field_data.get(district_key) != choice_key:
+            netbox_site.custom_field_data[district_key] = choice_key
             updated = True
             
     if local_level_name_key and api_site.get('palika'):
         val = api_site.get('palika')
-        if netbox_site.custom_field_data.get(local_level_name_key) != val:
-            netbox_site.custom_field_data[local_level_name_key] = val
+        choice_key = get_choice_key_for_label(local_level_name_key, val)
+        if netbox_site.custom_field_data.get(local_level_name_key) != choice_key:
+            netbox_site.custom_field_data[local_level_name_key] = choice_key
             updated = True
             
     if local_level_type_key and api_site.get('palika_type'):
         val = api_site.get('palika_type')
-        if val == 'RuralMunicipality':
-            val = 'Rural Municipality'
-        if netbox_site.custom_field_data.get(local_level_type_key) != val:
-            netbox_site.custom_field_data[local_level_type_key] = val
+        mapping = {
+            'RuralMunicipality': 'Rural Municipality',
+            'Municipality': 'Municipality',
+            'Metropolitan': 'Metropolitan',
+            'SubMetropolitan': 'Sub-Metropolitan',
+            'Sub-Metropolitan': 'Sub-Metropolitan',
+        }
+        val = mapping.get(val, val)
+        choice_key = get_choice_key_for_label(local_level_type_key, val)
+        if netbox_site.custom_field_data.get(local_level_type_key) != choice_key:
+            netbox_site.custom_field_data[local_level_type_key] = choice_key
             updated = True
             
     if ward_key and api_site.get('wardno') is not None:
@@ -175,6 +241,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
             messages.error(request, f"Failed to fetch site data from external server: {api_error}")
             
         cf_name = get_site_id_cf_name()
+        choices_map = build_cf_choices_map()
         
         # Build mapping of NetBox sites by Site ID custom field (case-insensitive)
         netbox_sites_map = {}
@@ -186,7 +253,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
                     
         # Calculate stats
         total_api_sites = len(api_sites)
-        total_netbox = Site.objects.count()
+        total_netbox = len(netbox_sites_map) # total linked sites
         
         # Search query filter from search box
         q = request.GET.get('q', '').strip().upper()
@@ -258,25 +325,28 @@ class DemandsiteListView(LoginRequiredMixin, View):
                     local_level_type_key = None
                 ward_key = get_cf_key(matched_site, ['ward'])
                 
-                # Fetch devices
+                # Fetch devices under Site with roles: WSD/BTS/2G, WSD/BTS/3G, WSD/BTS/4G
                 devices = Device.objects.filter(site=matched_site)
-                dev_names = [d.name for d in devices]
+                dev_names = []
+                for d in devices:
+                    if d.device_role and str(d.device_role.name).strip() in ['WSD/BTS/2G', 'WSD/BTS/3G', 'WSD/BTS/4G']:
+                        dev_names.append(d.name)
                 
                 nb_data = {
-                    'site_id': matched_site.custom_field_data.get(cf_name, '—'),
+                    'site_id': resolve_cf_display(cf_name, matched_site.custom_field_data.get(cf_name), choices_map),
                     'name': matched_site.name,
                     'region': matched_site.region.name if matched_site.region else '—',
-                    'district': matched_site.custom_field_data.get(district_key, '—') if district_key else '—',
-                    'local_level_name': matched_site.custom_field_data.get(local_level_name_key, '—') if local_level_name_key else '—',
-                    'local_level': matched_site.custom_field_data.get(local_level_type_key, '—') if local_level_type_key else '—',
-                    'ward': matched_site.custom_field_data.get(ward_key, '—') if ward_key else '—',
+                    'district': resolve_cf_display(district_key, matched_site.custom_field_data.get(district_key), choices_map) if district_key else '—',
+                    'local_level_name': resolve_cf_display(local_level_name_key, matched_site.custom_field_data.get(local_level_name_key), choices_map) if local_level_name_key else '—',
+                    'local_level': resolve_cf_display(local_level_type_key, matched_site.custom_field_data.get(local_level_type_key), choices_map) if local_level_type_key else '—',
+                    'ward': resolve_cf_display(ward_key, matched_site.custom_field_data.get(ward_key), choices_map) if ward_key else '—',
                     'latitude': matched_site.latitude if matched_site.latitude is not None else '—',
                     'longitude': matched_site.longitude if matched_site.longitude is not None else '—',
                     'status': matched_site.get_status_display() if hasattr(matched_site, 'get_status_display') else str(matched_site.status),
                     'devices': ",".join(dev_names) if dev_names else '—',
                 }
                 
-                # Check mismatch
+                # Check mismatch comparing resolved display labels
                 lat_diff = False
                 lon_diff = False
                 status_diff = False
@@ -303,18 +373,24 @@ class DemandsiteListView(LoginRequiredMixin, View):
                     except Exception:
                         pass
                         
-                if district_key and item.get('district') and matched_site.custom_field_data.get(district_key) != item.get('district'):
+                if district_key and item.get('district') and nb_data['district'] != item.get('district'):
                     cf_diff = True
-                if local_level_name_key and item.get('palika') and matched_site.custom_field_data.get(local_level_name_key) != item.get('palika'):
+                if local_level_name_key and item.get('palika') and nb_data['local_level_name'] != item.get('palika'):
                     cf_diff = True
                 if local_level_type_key and item.get('palika_type'):
                     val = item.get('palika_type')
-                    if val == 'RuralMunicipality':
-                        val = 'Rural Municipality'
-                    if matched_site.custom_field_data.get(local_level_type_key) != val:
+                    mapping = {
+                        'RuralMunicipality': 'Rural Municipality',
+                        'Municipality': 'Municipality',
+                        'Metropolitan': 'Metropolitan',
+                        'SubMetropolitan': 'Sub-Metropolitan',
+                        'Sub-Metropolitan': 'Sub-Metropolitan',
+                    }
+                    val = mapping.get(val, val)
+                    if nb_data['local_level'] != val:
                         cf_diff = True
                 if ward_key and item.get('wardno') is not None:
-                    if str(matched_site.custom_field_data.get(ward_key)) != str(item.get('wardno')):
+                    if str(nb_data['ward']) != str(item.get('wardno')):
                         cf_diff = True
                         
                 if lat_diff or lon_diff or status_diff or cf_diff:
