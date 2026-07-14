@@ -300,10 +300,19 @@
                                             </button>
                                         </form>
                                     {% else %}
-                                        <span class="text-success fw-bold" title="Synchronized"><i class="mdi mdi-check-circle fs-5"></i></span>
+                                        <span class="text-success fw-bold d-flex align-items-center justify-content-center" title="Synchronized">
+                                            <i class="mdi mdi-check-circle fs-5 me-1"></i> Synced
+                                        </span>
                                     {% endif %}
                                 {% else %}
-                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle py-1" title="Create Site in NetBox first with Site ID custom field">N/A</span>
+                                    <form method="post" action="">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="sync_single">
+                                        <input type="hidden" name="siteid" value="{{ site.api_data.siteid }}">
+                                        <button type="submit" class="btn btn-sm btn-primary d-flex align-items-center justify-content-center mx-auto" title="Add and Sync site to NetBox">
+                                            <i class="mdi mdi-plus-circle me-1"></i> Sync
+                                        </button>
+                                    </form>
                                 {% endif %}
                             </td>
                         </tr>

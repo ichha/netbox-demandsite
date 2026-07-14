@@ -1,11 +1,13 @@
 import logging
 import requests
+import re
 from decimal import Decimal
 from django.shortcuts import render, redirect
 from django.views.generic import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
-from dcim.models import Site, Device
+from django.utils.text import slugify
+from dcim.models import Site, Device, Region
 from extras.models import CustomField
 from django.contrib.contenttypes.models import ContentType
 
@@ -133,6 +135,22 @@ def sync_one_site(netbox_site, api_site, cf_name):
     elif api_status == 'Planned' and netbox_site.status != 'planned':
         netbox_site.status = 'planned'
         updated = True
+
+    # 2.5. Sync Region/Province
+    api_province = api_site.get('province')
+    siteid = api_site.get('siteid')
+    if api_province:
+        region_obj = None
+        is_ktm_bagmati = str(siteid).upper().startswith("KTM") and str(api_province).strip().lower() == "bagmati"
+        if is_ktm_bagmati:
+            region_obj = Region.objects.filter(name__iexact="Bagmati_KTM").first() or Region.objects.filter(name__iexact="Bagmati KTM").first()
+            
+        if not region_obj:
+            region_obj = Region.objects.filter(name__iexact=api_province).first()
+            
+        if region_obj and netbox_site.region != region_obj:
+            netbox_site.region = region_obj
+            updated = True
         
     # 3. Sync Description containing Local Divisions
     desc_parts = []
@@ -174,8 +192,21 @@ def sync_one_site(netbox_site, api_site, cf_name):
             
     if local_level_name_key and api_site.get('palika'):
         val = api_site.get('palika')
-        choice_key = get_choice_key_for_label(local_level_name_key, val)
-        if netbox_site.custom_field_data.get(local_level_name_key) != choice_key:
+        
+        # Specific rule: Kathmandu Mahanagarpalika -> Kathmandu
+        val_clean = str(val).strip()
+        if val_clean.upper() == "KATHMANDU MAHANAGARPALIKA":
+            val_clean = "Kathmandu"
+            
+        choice_key = get_choice_key_for_label(local_level_name_key, val_clean)
+        
+        # Compare first word only to see if they already match
+        api_palika_first = val_clean.split()[0] if val_clean else ''
+        existing_val = netbox_site.custom_field_data.get(local_level_name_key)
+        resolved_existing = resolve_cf_display(local_level_name_key, existing_val, choices_map)
+        nb_palika_first = str(resolved_existing).strip().split()[0] if resolved_existing else ''
+        
+        if api_palika_first.lower() != nb_palika_first.lower():
             netbox_site.custom_field_data[local_level_name_key] = choice_key
             updated = True
             
@@ -384,6 +415,11 @@ class DemandsiteListView(LoginRequiredMixin, View):
                         suffix = parts[1]
                         if str(siteid).upper().startswith(suffix.upper()):
                             nb_region_base = parts[0]
+                    elif ' ' in nb_region:
+                        parts = nb_region.rsplit(' ', 1)
+                        suffix = parts[1]
+                        if str(siteid).upper().startswith(suffix.upper()):
+                            nb_region_base = parts[0]
                     if api_province.lower() != nb_region_base.lower():
                         region_diff = True
                         cf_diff = True
@@ -517,13 +553,40 @@ class DemandsiteListView(LoginRequiredMixin, View):
             api_site = next((x for x in api_sites if str(x.get('siteid')).strip().upper() == str(siteid).strip().upper()), None)
             netbox_site = netbox_sites_map.get(str(siteid).strip().upper())
             
-            if api_site and netbox_site:
-                if sync_one_site(netbox_site, api_site, cf_name):
-                    messages.success(request, f"Successfully synchronized all fields for {siteid} ({netbox_site.name}) to NetBox.")
+            if api_site:
+                if not netbox_site:
+                    # Create new site
+                    sitename_raw = api_site.get('sitename2') or api_site.get('sitename1') or siteid
+                    base_name = sitename_raw
+                    name = base_name
+                    slug = slugify(siteid)
+                    
+                    if Site.objects.filter(slug=slug).exists():
+                        slug = slugify(f"{siteid}-{base_name}")[:100]
+                    if Site.objects.filter(name=name).exists():
+                        name = f"{base_name} ({siteid})"[:100]
+                    
+                    counter = 1
+                    while Site.objects.filter(name=name).exists():
+                        name = f"{base_name} ({siteid}) {counter}"[:100]
+                        counter += 1
+                        
+                    netbox_site = Site(
+                        name=name,
+                        slug=slug,
+                        status='active' if api_site.get('status') == 'Operational' else 'planned',
+                        custom_field_data={cf_name: siteid}
+                    )
+                    netbox_site.save()
+                    sync_one_site(netbox_site, api_site, cf_name)
+                    messages.success(request, f"Successfully created and synchronized site {siteid} ({name}) in NetBox.")
                 else:
-                    messages.info(request, f"Site {siteid} ({netbox_site.name}) is already fully synchronized.")
+                    if sync_one_site(netbox_site, api_site, cf_name):
+                        messages.success(request, f"Successfully synchronized all fields for {siteid} ({netbox_site.name}) to NetBox.")
+                    else:
+                        messages.info(request, f"Site {siteid} ({netbox_site.name}) is already fully synchronized.")
             else:
-                messages.error(request, f"Failed to sync site {siteid}. Make sure it exists in both systems.")
+                messages.error(request, f"Failed to sync site {siteid}. Site not found in API data.")
                 
         return redirect('plugins:netbox_demandsite:demandsite_list')
 
