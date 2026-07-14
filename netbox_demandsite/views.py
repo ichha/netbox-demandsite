@@ -329,7 +329,8 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 devices = Device.objects.filter(site=matched_site)
                 dev_names = []
                 for d in devices:
-                    if d.device_role and str(d.device_role.name).strip() in ['WSD/BTS/2G', 'WSD/BTS/3G', 'WSD/BTS/4G']:
+                    role_obj = getattr(d, 'role', None) or getattr(d, 'device_role', None)
+                    if role_obj and str(role_obj.name).strip() in ['WSD/BTS/2G', 'WSD/BTS/3G', 'WSD/BTS/4G']:
                         dev_names.append(d.name)
                 
                 nb_data = {
