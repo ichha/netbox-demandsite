@@ -5,18 +5,29 @@
 
 {% block content %}
 
-{% if show_comparison %}
-<!-- ========================================== -->
-<!-- SIDE-BY-SIDE COMPARISON VIEW               -->
-<!-- ========================================== -->
+<!-- Search Header -->
+<div class="card shadow-sm border-0 mb-4 bg-light py-3 px-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <h4 class="mb-0 fw-bold text-dark">Compare Site by Site ID</h4>
+        
+        <!-- Search Form -->
+        <form method="get" action="" class="d-flex" style="max-width: 400px; width: 100%;">
+            <div class="input-group">
+                <input type="text" name="q" class="form-control" placeholder="Enter Site ID (e.g. EDR776)..." value="{{ siteid }}">
+                <button class="btn btn-primary" type="submit">
+                    <i class="mdi mdi-magnify"></i> Search & Compare
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if api_site %}
 
 <!-- Header and Navigation -->
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div class="d-flex align-items-center">
-        <a href="?" class="btn btn-outline-secondary me-3">
-            <i class="mdi mdi-arrow-left"></i> Back to List
-        </a>
-        <h2 class="mb-0">Compare Site: <span class="badge bg-secondary text-white font-monospace" style="color: #ffffff !important;">{{ siteid }}</span></h2>
+        <h2 class="mb-0">Site Comparison: <span class="badge bg-secondary text-white font-monospace" style="color: #ffffff !important;">{{ siteid }}</span></h2>
     </div>
     
     {% if netbox_site %}
@@ -31,497 +42,248 @@
     {% endif %}
 </div>
 
-<div class="row">
-    <!-- Comparison Table -->
-    <div class="col-md-7">
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-light py-3 border-bottom d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 fw-bold">Field-by-Field Comparison</h5>
-                {% if netbox_site %}
-                    <span class="badge bg-success">Linked to NetBox Site: {{ netbox_site.name }}</span>
-                {% else %}
-                    <span class="badge bg-danger">Not Linked to NetBox</span>
-                {% endif %}
-            </div>
-            <div class="card-body p-0">
-                <table class="table table-bordered mb-0 align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th style="width: 25%;">Field</th>
-                            <th style="width: 35%;">Demandsite (API)</th>
-                            <th style="width: 35%;">NetBox Site</th>
-                            <th class="text-center" style="width: 10%;">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Site ID -->
-                        <tr class="{% if not netbox_site or api_site.siteid|upper != nb_data.site_id|upper %}table-warning{% endif %}">
-                            <td class="fw-bold">Site ID</td>
-                            <td class="font-monospace">{{ api_site.siteid }}</td>
-                            <td class="font-monospace">{{ nb_data.site_id|default:"—" }}</td>
-                            <td class="text-center">
-                                {% if netbox_site and api_site.siteid|upper == nb_data.site_id|upper %}
-                                    <i class="mdi mdi-check-circle text-success" title="Match"></i>
-                                {% else %}
-                                    <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
-                                {% endif %}
-                            </td>
-                        </tr>
-
-                        <!-- Site Name -->
-                        <tr class="{% if not netbox_site or api_site.sitename2 != nb_data.name %}table-warning{% endif %}">
-                            <td class="fw-bold">Site Name</td>
-                            <td>
-                                {{ api_site.sitename2 }}
-                                {% if api_site.sitename1 and api_site.sitename1 != api_site.sitename2 %}
-                                    <div class="text-muted small">Alt: {{ api_site.sitename1 }}</div>
-                                {% endif %}
-                            </td>
-                            <td>{{ nb_data.name|default:"—" }}</td>
-                            <td class="text-center">
-                                {% if netbox_site and api_site.sitename2 == nb_data.name %}
-                                    <i class="mdi mdi-check-circle text-success" title="Match"></i>
-                                {% else %}
-                                    <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
-                                {% endif %}
-                            </td>
-                        </tr>
-
-                        <!-- Province / Region -->
-                        <tr class="{% if not netbox_site or api_site.province != nb_data.region %}table-warning{% endif %}">
-                            <td class="fw-bold">Province / Region</td>
-                            <td>{{ api_site.province }}</td>
-                            <td>{{ nb_data.region|default:"—" }}</td>
-                            <td class="text-center">
-                                {% if netbox_site and api_site.province == nb_data.region %}
-                                    <i class="mdi mdi-check-circle text-success" title="Match"></i>
-                                {% else %}
-                                    <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
-                                {% endif %}
-                            </td>
-                        </tr>
-
-                        <!-- District -->
-                        <tr class="{% if not netbox_site or api_site.district != nb_data.district %}table-warning{% endif %}">
-                            <td class="fw-bold">District</td>
-                            <td>{{ api_site.district }}</td>
-                            <td>{{ nb_data.district|default:"—" }}</td>
-                            <td class="text-center">
-                                {% if netbox_site and api_site.district == nb_data.district %}
-                                    <i class="mdi mdi-check-circle text-success" title="Match"></i>
-                                {% else %}
-                                    <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
-                                {% endif %}
-                            </td>
-                        </tr>
-
-                        <!-- Local Level / Palika Name -->
-                        <tr class="{% if not netbox_site or api_site.palika != nb_data.local_level_name %}table-warning{% endif %}">
-                            <td class="fw-bold">Local Level Name</td>
-                            <td>{{ api_site.palika }}</td>
-                            <td>{{ nb_data.local_level_name|default:"—" }}</td>
-                            <td class="text-center">
-                                {% if netbox_site and api_site.palika == nb_data.local_level_name %}
-                                    <i class="mdi mdi-check-circle text-success" title="Match"></i>
-                                {% else %}
-                                    <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
-                                {% endif %}
-                            </td>
-                        </tr>
-
-                        <!-- Local Level Type -->
-                        {% with api_palika_type=api_site.palika_type %}
-                        <tr class="{% if not netbox_site or api_palika_type != nb_data.local_level and api_palika_type|slugify != nb_data.local_level|slugify %}table-warning{% endif %}">
-                            <td class="fw-bold">Local Level Type</td>
-                            <td>{{ api_palika_type }}</td>
-                            <td>{{ nb_data.local_level|default:"—" }}</td>
-                            <td class="text-center">
-                                {% if netbox_site and api_palika_type == nb_data.local_level or api_palika_type|slugify == nb_data.local_level|slugify %}
-                                    <i class="mdi mdi-check-circle text-success" title="Match"></i>
-                                {% else %}
-                                    <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endwith %}
-
-                        <!-- Ward -->
-                        <tr class="{% if not netbox_site or api_site.wardno|stringformat:"s" != nb_data.ward|stringformat:"s" %}table-warning{% endif %}">
-                            <td class="fw-bold">Ward No</td>
-                            <td>{{ api_site.wardno }}</td>
-                            <td>{{ nb_data.ward|default:"—" }}</td>
-                            <td class="text-center">
-                                {% if netbox_site and api_site.wardno|stringformat:"s" == nb_data.ward|stringformat:"s" %}
-                                    <i class="mdi mdi-check-circle text-success" title="Match"></i>
-                                {% else %}
-                                    <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
-                                {% endif %}
-                            </td>
-                        </tr>
-
-                        <!-- Latitude -->
-                        <tr class="{% if not netbox_site or api_site.latitude|stringformat:".5f" != nb_data.latitude|stringformat:".5f" %}table-warning{% endif %}">
-                            <td class="fw-bold">Latitude</td>
-                            <td class="font-monospace">{{ api_site.latitude }}</td>
-                            <td class="font-monospace">{{ nb_data.latitude|default:"—" }}</td>
-                            <td class="text-center">
-                                {% if netbox_site and api_site.latitude|stringformat:".5f" == nb_data.latitude|stringformat:".5f" %}
-                                    <i class="mdi mdi-check-circle text-success" title="Match"></i>
-                                {% else %}
-                                    <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
-                                {% endif %}
-                            </td>
-                        </tr>
-
-                        <!-- Longitude -->
-                        <tr class="{% if not netbox_site or api_site.longitude|stringformat:".5f" != nb_data.longitude|stringformat:".5f" %}table-warning{% endif %}">
-                            <td class="fw-bold">Longitude</td>
-                            <td class="font-monospace">{{ api_site.longitude }}</td>
-                            <td class="font-monospace">{{ nb_data.longitude|default:"—" }}</td>
-                            <td class="text-center">
-                                {% if netbox_site and api_site.longitude|stringformat:".5f" == nb_data.longitude|stringformat:".5f" %}
-                                    <i class="mdi mdi-check-circle text-success" title="Match"></i>
-                                {% else %}
-                                    <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
-                                {% endif %}
-                            </td>
-                        </tr>
-
-                        <!-- Status -->
-                        <tr class="{% if not netbox_site or api_site.status == 'Operational' and nb_data.status != 'Active' and nb_data.status != 'active' or api_site.status == 'Planned' and nb_data.status != 'Planned' and nb_data.status != 'planned' %}table-warning{% endif %}">
-                            <td class="fw-bold">Status</td>
-                            <td>
-                                {% if api_site.status == 'Operational' %}
-                                    <span class="badge bg-success">Operational</span>
-                                {% else %}
-                                    <span class="badge bg-info text-dark">{{ api_site.status }}</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if nb_data.status == 'Active' or nb_data.status == 'active' %}
-                                    <span class="badge bg-success">Active</span>
-                                {% elif nb_data.status == 'Planned' or nb_data.status == 'planned' %}
-                                    <span class="badge bg-info text-dark">Planned</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">{{ nb_data.status }}</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-center">
-                                {% if netbox_site and api_site.status == 'Operational' and nb_data.status == 'Active' or api_site.status == 'Operational' and nb_data.status == 'active' or api_site.status == 'Planned' and nb_data.status == 'Planned' or api_site.status == 'Planned' and nb_data.status == 'planned' %}
-                                    <i class="mdi mdi-check-circle text-success" title="Match"></i>
-                                {% else %}
-                                    <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
-                                {% endif %}
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+<!-- Unified Comparison Table -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-light py-3 border-bottom d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 fw-bold">Site Data Side-by-Side Comparison</h5>
+        {% if netbox_site %}
+            <span class="badge bg-success">Linked to NetBox Site: {{ netbox_site.name }}</span>
+        {% else %}
+            <span class="badge bg-danger">Not Linked to NetBox</span>
+        {% endif %}
     </div>
+    <div class="card-body p-0">
+        <table class="table table-bordered mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 20%;">Field</th>
+                    <th style="width: 37.5%;">API Data</th>
+                    <th style="width: 37.5%;">NETBOX Data</th>
+                    <th class="text-center" style="width: 5%;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Site ID -->
+                <tr class="{% if not netbox_site or api_site.siteid|upper != nb_data.site_id|upper %}table-warning{% endif %}">
+                    <td class="fw-bold">Site ID</td>
+                    <td class="font-monospace">{{ api_site.siteid }}</td>
+                    <td class="font-monospace">{{ nb_data.site_id|default:"—" }}</td>
+                    <td class="text-center">
+                        {% if netbox_site and api_site.siteid|upper == nb_data.site_id|upper %}
+                            <i class="mdi mdi-check-circle text-success" title="Match"></i>
+                        {% else %}
+                            <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
+                        {% endif %}
+                    </td>
+                </tr>
 
-    <!-- Technologies vs NetBox Devices -->
-    <div class="col-md-5">
-        <!-- API Technologies Card -->
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-light py-3 border-bottom">
-                <h5 class="mb-0 fw-bold">API Technologies</h5>
-            </div>
-            <div class="card-body">
-                {% if api_site.operational_technologies %}
-                    <div class="list-group list-group-flush">
-                        {% for tech in api_site.operational_technologies %}
-                            <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-0 fw-bold">{{ tech.technology }}</h6>
-                                    <small class="text-muted">Raw Tech: {{ tech.raw_technology }}</small>
-                                </div>
-                                <div class="text-end">
-                                    <span class="badge bg-secondary">On Air</span>
-                                    {% if tech.on_air_date %}
-                                        <div class="small text-muted" style="font-size: 11px;">{{ tech.on_air_date }}</div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="text-center py-3 text-muted">
-                        <i class="mdi mdi-wifi-off display-6"></i>
-                        <p class="mt-2 mb-0">No technologies listed in API data.</p>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
+                <!-- Name -->
+                <tr class="{% if not netbox_site or api_site.sitename2 != nb_data.name %}table-warning{% endif %}">
+                    <td class="fw-bold">Name</td>
+                    <td>{{ api_site.sitename2 }}</td>
+                    <td>{{ nb_data.name|default:"—" }}</td>
+                    <td class="text-center">
+                        {% if netbox_site and api_site.sitename2 == nb_data.name %}
+                            <i class="mdi mdi-check-circle text-success" title="Match"></i>
+                        {% else %}
+                            <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
+                        {% endif %}
+                    </td>
+                </tr>
 
-        <!-- NetBox Devices under Site -->
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-light py-3 border-bottom">
-                <h5 class="mb-0 fw-bold">Devices under Site (NetBox)</h5>
-            </div>
-            <div class="card-body">
-                {% if nb_devices %}
-                    <div class="list-group list-group-flush">
-                        {% for dev in nb_devices %}
-                            <div class="list-group-item px-0">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <a href="{{ dev.absolute_url }}" class="fw-bold" target="_blank">{{ dev.name }}</a>
-                                    {% if dev.status == 'Active' or dev.status == 'active' %}
-                                        <span class="badge bg-success">Active</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">{{ dev.status }}</span>
-                                    {% endif %}
-                                </div>
-                                <div class="d-flex justify-content-between align-items-center mt-1">
-                                    <span class="small text-muted">Role: <strong>{{ dev.role }}</strong></span>
-                                    <span class="badge bg-light text-dark font-monospace" style="font-size: 11px;">{{ dev.type }}</span>
-                                </div>
+                <!-- Region -->
+                <tr class="{% if not netbox_site or api_site.province != nb_data.region %}table-warning{% endif %}">
+                    <td class="fw-bold">Region</td>
+                    <td>{{ api_site.province }}</td>
+                    <td>{{ nb_data.region|default:"—" }}</td>
+                    <td class="text-center">
+                        {% if netbox_site and api_site.province == nb_data.region %}
+                            <i class="mdi mdi-check-circle text-success" title="Match"></i>
+                        {% else %}
+                            <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
+                        {% endif %}
+                    </td>
+                </tr>
+
+                <!-- District -->
+                <tr class="{% if not netbox_site or api_site.district != nb_data.district %}table-warning{% endif %}">
+                    <td class="fw-bold">District</td>
+                    <td>{{ api_site.district }}</td>
+                    <td>{{ nb_data.district|default:"—" }}</td>
+                    <td class="text-center">
+                        {% if netbox_site and api_site.district == nb_data.district %}
+                            <i class="mdi mdi-check-circle text-success" title="Match"></i>
+                        {% else %}
+                            <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
+                        {% endif %}
+                    </td>
+                </tr>
+
+                <!-- Local Level Name -->
+                <tr class="{% if not netbox_site or api_site.palika != nb_data.local_level_name %}table-warning{% endif %}">
+                    <td class="fw-bold">Local Level Name</td>
+                    <td>{{ api_site.palika }}</td>
+                    <td>{{ nb_data.local_level_name|default:"—" }}</td>
+                    <td class="text-center">
+                        {% if netbox_site and api_site.palika == nb_data.local_level_name %}
+                            <i class="mdi mdi-check-circle text-success" title="Match"></i>
+                        {% else %}
+                            <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
+                        {% endif %}
+                    </td>
+                </tr>
+
+                <!-- Local Level -->
+                {% with api_palika_type=api_site.palika_type %}
+                <tr class="{% if not netbox_site or api_palika_type != nb_data.local_level and api_palika_type|slugify != nb_data.local_level|slugify %}table-warning{% endif %}">
+                    <td class="fw-bold">Local Level</td>
+                    <td>{{ api_palika_type }}</td>
+                    <td>{{ nb_data.local_level|default:"—" }}</td>
+                    <td class="text-center">
+                        {% if netbox_site and api_palika_type == nb_data.local_level or api_palika_type|slugify == nb_data.local_level|slugify %}
+                            <i class="mdi mdi-check-circle text-success" title="Match"></i>
+                        {% else %}
+                            <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endwith %}
+
+                <!-- Ward -->
+                <tr class="{% if not netbox_site or api_site.wardno|stringformat:"s" != nb_data.ward|stringformat:"s" %}table-warning{% endif %}">
+                    <td class="fw-bold">Ward</td>
+                    <td>{{ api_site.wardno }}</td>
+                    <td>{{ nb_data.ward|default:"—" }}</td>
+                    <td class="text-center">
+                        {% if netbox_site and api_site.wardno|stringformat:"s" == nb_data.ward|stringformat:"s" %}
+                            <i class="mdi mdi-check-circle text-success" title="Match"></i>
+                        {% else %}
+                            <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
+                        {% endif %}
+                    </td>
+                </tr>
+
+                <!-- GPS coordinates -->
+                <tr class="{% if not netbox_site or api_site.latitude|stringformat:".5f" != nb_data.latitude|stringformat:".5f" or api_site.longitude|stringformat:".5f" != nb_data.longitude|stringformat:".5f" %}table-warning{% endif %}">
+                    <td class="fw-bold">GPS coordinates</td>
+                    <td class="font-monospace">
+                        {% if api_site.latitude and api_site.longitude %}
+                            {{ api_site.latitude }}, {{ api_site.longitude }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td class="font-monospace">
+                        {% if nb_data.latitude and nb_data.longitude %}
+                            {{ nb_data.latitude }}, {{ nb_data.longitude }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if netbox_site and api_site.latitude|stringformat:".5f" == nb_data.latitude|stringformat:".5f" and api_site.longitude|stringformat:".5f" == nb_data.longitude|stringformat:".5f" %}
+                            <i class="mdi mdi-check-circle text-success" title="Match"></i>
+                        {% else %}
+                            <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
+                        {% endif %}
+                    </td>
+                </tr>
+
+                <!-- Status -->
+                <tr class="{% if not netbox_site or api_site.status == 'Operational' and nb_data.status != 'Active' and nb_data.status != 'active' or api_site.status == 'Planned' and nb_data.status != 'Planned' and nb_data.status != 'planned' %}table-warning{% endif %}">
+                    <td class="fw-bold">Status</td>
+                    <td>
+                        {% if api_site.status == 'Operational' %}
+                            <span class="badge bg-success">Operational</span>
+                        {% else %}
+                            <span class="badge bg-info text-dark">{{ api_site.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if nb_data.status == 'Active' or nb_data.status == 'active' %}
+                            <span class="badge bg-success">Active</span>
+                        {% elif nb_data.status == 'Planned' or nb_data.status == 'planned' %}
+                            <span class="badge bg-info text-dark">Planned</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ nb_data.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if netbox_site and api_site.status == 'Operational' and nb_data.status == 'Active' or api_site.status == 'Operational' and nb_data.status == 'active' or api_site.status == 'Planned' and nb_data.status == 'Planned' or api_site.status == 'Planned' and nb_data.status == 'planned' %}
+                            <i class="mdi mdi-check-circle text-success" title="Match"></i>
+                        {% else %}
+                            <i class="mdi mdi-alert-circle text-warning" title="Differs"></i>
+                        {% endif %}
+                    </td>
+                </tr>
+
+                <!-- Device under Site / Technology -->
+                <tr>
+                    <td class="fw-bold">Device under Site</td>
+                    
+                    <!-- Left: API Technologies -->
+                    <td>
+                        {% if api_site.operational_technologies %}
+                            <ul class="list-unstyled mb-0">
+                                {% for tech in api_site.operational_technologies %}
+                                    <li class="mb-1">
+                                        <span class="badge bg-primary text-white me-1">{{ tech.technology }}</span>
+                                        {% if tech.raw_on_air_date %}
+                                            <span class="text-muted small">On-Air: {{ tech.raw_on_air_date }}</span>
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% elif api_site.technology %}
+                            <div>
+                                <span class="badge bg-primary text-white me-1">{{ api_site.technology }}</span>
+                                {% if api_site.raw_on_air_date %}
+                                    <span class="text-muted small">On-Air: {{ api_site.raw_on_air_date }}</span>
+                                {% endif %}
                             </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="text-center py-3 text-muted">
-                        <i class="mdi mdi-server-off display-6"></i>
-                        <p class="mt-2 mb-0">No devices found in NetBox for this site.</p>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    
+                    <!-- Right: NetBox Devices -->
+                    <td>
+                        {% if nb_devices %}
+                            <ul class="list-unstyled mb-0">
+                                {% for dev in nb_devices %}
+                                    <li class="mb-1 d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <a href="{{ dev.absolute_url }}" class="fw-bold" target="_blank">{{ dev.name }}</a>
+                                            <span class="text-muted small ms-2">({{ dev.status }})</span>
+                                        </div>
+                                        <div class="text-end">
+                                            <span class="badge bg-light text-dark font-monospace" style="font-size: 11px;">{{ dev.type }}</span>
+                                        </div>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    
+                    <!-- Status column for devices -->
+                    <td class="text-center">
+                        <i class="mdi mdi-information text-info" title="Manual device alignment required"></i>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 </div>
 
 {% else %}
-<!-- ========================================== -->
-<!-- STANDARD SITES LIST VIEW                   -->
-<!-- ========================================== -->
-
-<div class="row mb-4">
-    <!-- Stat Cards -->
-    <div class="col-md-3">
-        <div class="card bg-light text-center border-0 shadow-sm h-100 py-2">
-            <div class="card-body">
-                <h6 class="text-uppercase text-muted mb-1">Total API Sites</h6>
-                <h2 class="display-6 fw-bold mb-0 text-dark">{{ total_sites }}</h2>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-light text-center border-0 shadow-sm h-100 py-2">
-            <div class="card-body">
-                <h6 class="text-uppercase text-muted mb-1">Matched Sites</h6>
-                <h2 class="display-6 fw-bold mb-0 text-success">{{ total_matched }}</h2>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-light text-center border-0 shadow-sm h-100 py-2">
-            <div class="card-body">
-                <h6 class="text-uppercase text-muted mb-1">Missing in NetBox</h6>
-                <h2 class="display-6 fw-bold mb-0 text-danger">{{ total_missing }}</h2>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-light text-center border-0 shadow-sm h-100 py-2">
-            <div class="card-body">
-                <h6 class="text-uppercase text-muted mb-1">Status Breakdown</h6>
-                <h4 class="fw-bold mb-1 text-primary">
-                    {{ total_operational }} <span class="text-muted fw-normal" style="font-size: 14px;">Operational</span>
-                </h4>
-                <h4 class="fw-bold mb-0 text-warning">
-                    {{ total_planned }} <span class="text-muted fw-normal" style="font-size: 14px;">Planned</span>
-                </h4>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Action Controls -->
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <!-- Search Form -->
-    <form method="get" class="d-flex" style="max-width: 400px; width: 100%;">
-        <div class="input-group">
-            <input type="text" name="q" class="form-control" placeholder="Search by Site ID, Name, Palika, District..." value="{{ q }}">
-            <button class="btn btn-outline-secondary" type="submit">
-                <i class="mdi mdi-magnify"></i> Search
-            </button>
-            {% if q %}
-                <a href="?" class="btn btn-outline-danger" title="Clear Search">
-                    <i class="mdi mdi-close"></i>
-                </a>
-            {% endif %}
-        </div>
-    </form>
-
-    <!-- Bulk Sync Action -->
-    {% if total_matched > 0 %}
-        <form method="post" action="">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="sync_all">
-            <button type="submit" class="btn btn-success d-flex align-items-center">
-                <i class="mdi mdi-database-sync me-2"></i> Sync All Matched Sites
-            </button>
-        </form>
-    {% endif %}
-</div>
-
-<!-- Main Data Table -->
-<div class="card shadow-sm border-0">
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover table-striped mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Site ID</th>
-                        <th>Site Name (EN / NE)</th>
-                        <th>Location Details</th>
-                        <th>API Status</th>
-                        <th>Technologies</th>
-                        <th>Coordinates</th>
-                        <th>NetBox Site Correlation</th>
-                        <th class="text-end">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for site in correlated_sites %}
-                        <tr>
-                            <!-- Site ID -->
-                            <td>
-                                <a href="?site_id={{ site.api_data.siteid }}" style="text-decoration: none;">
-                                    <span class="badge bg-secondary text-white font-monospace" style="font-size: 13px; color: #ffffff !important;">
-                                        {{ site.api_data.siteid }}
-                                    </span>
-                                </a>
-                            </td>
-                            
-                            <!-- Names -->
-                            <td>
-                                <div class="fw-bold">{{ site.api_data.sitename1 }}</div>
-                                {% if site.api_data.sitename2 and site.api_data.sitename2 != site.api_data.sitename1 %}
-                                    <div class="text-muted small">{{ site.api_data.sitename2 }}</div>
-                                {% endif %}
-                                {% if site.api_data.province_nepali or site.api_data.district_nepali or site.api_data.palika_nepali %}
-                                    <div class="text-muted small font-italic" style="font-family: 'Mukta', sans-serif;">
-                                        {% if site.api_data.palika_nepali %}{{ site.api_data.palika_nepali }}{% endif %}
-                                        {% if site.api_data.district_nepali %}, {{ site.api_data.district_nepali }}{% endif %}
-                                    </div>
-                                {% endif %}
-                            </td>
-                            
-                            <!-- Location Details -->
-                            <td>
-                                <div class="small">
-                                    <strong>Province:</strong> {{ site.api_data.province }}<br>
-                                    <strong>District:</strong> {{ site.api_data.district }}<br>
-                                    <strong>Palika:</strong> {{ site.api_data.palika }} {% if site.api_data.palika_type %}({{ site.api_data.palika_type }}){% endif %}
-                                    {% if site.api_data.wardno is not None %}
-                                        <span class="text-muted">Ward {{ site.api_data.wardno }}</span>
-                                    {% endif %}
-                                </div>
-                            </td>
-                            
-                            <!-- API Status -->
-                            <td>
-                                {% if site.api_data.status == 'Operational' %}
-                                    <span class="badge bg-success">Operational</span>
-                                {% elif site.api_data.status == 'Planned' %}
-                                    <span class="badge bg-info text-dark">Planned</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">{{ site.api_data.status }}</span>
-                                {% endif %}
-                            </td>
-                            
-                            <!-- Technologies -->
-                            <td>
-                                <div class="d-flex flex-wrap gap-1" style="max-width: 200px;">
-                                    {% if site.api_data.operational_technologies %}
-                                        {% for tech in site.api_data.operational_technologies %}
-                                            {% if '4G' in tech.technology %}
-                                                <span class="badge bg-primary text-white" title="On-air: {{ tech.on_air_date }}">{{ tech.technology }}</span>
-                                            {% elif '3G' in tech.technology %}
-                                                <span class="badge bg-info text-dark" title="On-air: {{ tech.on_air_date }}">{{ tech.technology }}</span>
-                                            {% elif '2G' in tech.technology %}
-                                                <span class="badge bg-secondary text-white" title="On-air: {{ tech.on_air_date }}">{{ tech.technology }}</span>
-                                            {% elif '5G' in tech.technology %}
-                                                <span class="badge bg-warning text-dark" title="On-air: {{ tech.on_air_date }}">{{ tech.technology }}</span>
-                                            {% else %}
-                                                <span class="badge bg-light text-dark" title="On-air: {{ tech.on_air_date }}">{{ tech.technology }}</span>
-                                            {% endif %}
-                                        {% endfor %}
-                                    {% else %}
-                                        <span class="text-muted small">None</span>
-                                    {% endif %}
-                                </div>
-                            </td>
-                            
-                            <!-- Coordinates -->
-                            <td>
-                                <div class="small text-nowrap">
-                                    {% if site.api_data.latitude and site.api_data.longitude %}
-                                        <i class="mdi mdi-map-marker text-danger"></i> {{ site.api_data.latitude }}, {{ site.api_data.longitude }}
-                                    {% else %}
-                                        <span class="text-muted">No Coordinates</span>
-                                    {% endif %}
-                                </div>
-                            </td>
-                            
-                            <!-- NetBox Correlation -->
-                            <td>
-                                {% if site.netbox_site %}
-                                    <div class="d-flex align-items-center">
-                                        <span class="badge bg-{{ site.sync_color }} me-2">{{ site.sync_status }}</span>
-                                        <a href="{{ site.netbox_site.get_absolute_url }}" class="fw-bold" target="_blank">
-                                            {{ site.netbox_site.name }}
-                                        </a>
-                                    </div>
-                                    <div class="text-muted small">
-                                        {% if site.netbox_site.latitude and site.netbox_site.longitude %}
-                                            NB: {{ site.netbox_site.latitude }}, {{ site.netbox_site.longitude }}
-                                        {% else %}
-                                            NB: No coordinates
-                                        {% endif %}
-                                        <br>
-                                        NB Status: {{ site.netbox_site.status|capfirst }}
-                                    </div>
-                                {% else %}
-                                    <span class="badge bg-danger">Missing in NetBox</span>
-                                {% endif %}
-                            </td>
-                            
-                            <!-- Actions -->
-                            <td class="text-end">
-                                {% if site.netbox_site %}
-                                    {% if site.needs_sync %}
-                                        <form method="post" action="" style="display:inline;">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="action" value="sync_single">
-                                            <input type="hidden" name="siteid" value="{{ site.api_data.siteid }}">
-                                            <button type="submit" class="btn btn-sm btn-warning d-inline-flex align-items-center" title="Sync details to NetBox">
-                                                <i class="mdi mdi-sync me-1"></i> Sync
-                                            </button>
-                                        </form>
-                                    {% else %}
-                                        <button class="btn btn-sm btn-outline-success" disabled>
-                                            <i class="mdi mdi-check-circle"></i> Synced
-                                        </button>
-                                    {% endif %}
-                                {% else %}
-                                    <button class="btn btn-sm btn-outline-secondary" disabled title="Create site in NetBox first with Custom Field: {{ cf_name }}">
-                                        N/A
-                                    </button>
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% empty %}
-                        <tr>
-                            <td colspan="8" class="text-center py-4 text-muted">
-                                <i class="mdi mdi-alert-circle-outline display-6"></i>
-                                <p class="mt-2 mb-0">No sites found matching your filter criteria.</p>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+<div class="alert alert-info py-4">
+    <div class="d-flex align-items-center">
+        <i class="mdi mdi-information-outline display-6 me-3"></i>
+        <div>
+            <h4 class="alert-heading fw-bold mb-1">No Site Loaded</h4>
+            <p class="mb-0">Please enter a valid Site ID in the search box above to compare details side-by-side.</p>
         </div>
     </div>
 </div>

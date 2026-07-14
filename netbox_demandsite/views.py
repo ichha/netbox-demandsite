@@ -184,185 +184,77 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 if site_id_val:
                     netbox_sites_map[str(site_id_val).strip().upper()] = site
                     
-        # Check if we should display the side-by-side comparison for a specific Site ID
+        # Check query params or search queries
         selected_site_id = request.GET.get('site_id')
-        
-        # Also check if query is an exact site id match
         search_q = request.GET.get('q', '').strip().upper()
+        
         if not selected_site_id and search_q:
-            # Check if search_q matches exactly any siteid in the API
+            # Check if search_q matches exactly any siteid
             exact_match = next((x for x in api_sites if str(x.get('siteid')).strip().upper() == search_q), None)
             if exact_match:
                 selected_site_id = exact_match.get('siteid')
+            else:
+                # Find first matching site
+                match = next((x for x in api_sites if search_q in str(x.get('siteid')).upper() or search_q in str(x.get('sitename2')).upper()), None)
+                if match:
+                    selected_site_id = match.get('siteid')
+
+        # Fallback default: load the first site if none is selected
+        if not selected_site_id and api_sites:
+            selected_site_id = api_sites[0].get('siteid')
+
+        api_site = None
+        netbox_site = None
+        nb_data = {}
+        nb_devices = []
 
         if selected_site_id:
             api_site = next((x for x in api_sites if str(x.get('siteid')).strip().upper() == str(selected_site_id).strip().upper()), None)
-            if not api_site:
-                messages.error(request, f"Site ID {selected_site_id} not found in API.")
-                return redirect('plugins:netbox_demandsite:demandsite_list')
+            if api_site:
+                netbox_site = netbox_sites_map.get(str(selected_site_id).strip().upper())
                 
-            netbox_site = netbox_sites_map.get(str(selected_site_id).strip().upper())
-            
-            nb_data = {}
-            nb_devices = []
-            
-            if netbox_site:
-                district_key = get_cf_key(netbox_site, ['district'])
-                local_level_name_key = get_cf_key(netbox_site, ['local', 'level', 'name']) or get_cf_key(netbox_site, ['palika'])
-                local_level_type_key = get_cf_key(netbox_site, ['local', 'level']) or get_cf_key(netbox_site, ['palika', 'type'])
-                if local_level_type_key == local_level_name_key:
-                    local_level_type_key = None
-                ward_key = get_cf_key(netbox_site, ['ward'])
-                
-                nb_data = {
-                    'site_id': netbox_site.custom_field_data.get(cf_name, '—'),
-                    'name': netbox_site.name,
-                    'region': netbox_site.region.name if netbox_site.region else '—',
-                    'district': netbox_site.custom_field_data.get(district_key, '—') if district_key else '—',
-                    'local_level_name': netbox_site.custom_field_data.get(local_level_name_key, '—') if local_level_name_key else '—',
-                    'local_level': netbox_site.custom_field_data.get(local_level_type_key, '—') if local_level_type_key else '—',
-                    'ward': netbox_site.custom_field_data.get(ward_key, '—') if ward_key else '—',
-                    'latitude': netbox_site.latitude,
-                    'longitude': netbox_site.longitude,
-                    'status': netbox_site.get_status_display() if hasattr(netbox_site, 'get_status_display') else str(netbox_site.status),
-                }
-                
-                # Fetch devices under Site
-                devices = Device.objects.filter(site=netbox_site)
-                for d in devices:
-                    role_name = d.device_role.name if d.device_role else "—"
-                    type_name = d.device_type.model if d.device_type else "—"
-                    nb_devices.append({
-                        'name': d.name,
-                        'status': d.get_status_display() if hasattr(d, 'get_status_display') else str(d.status),
-                        'role': role_name,
-                        'type': type_name,
-                        'absolute_url': d.get_absolute_url() if hasattr(d, 'get_absolute_url') else "#"
-                    })
-            
-            context = {
-                'show_comparison': True,
-                'siteid': selected_site_id,
-                'api_site': api_site,
-                'netbox_site': netbox_site,
-                'nb_data': nb_data,
-                'nb_devices': nb_devices,
-                'cf_name': cf_name,
-                'q': request.GET.get('q', '')
-            }
-            return render(request, self.template_name, context)
+                if netbox_site:
+                    district_key = get_cf_key(netbox_site, ['district'])
+                    local_level_name_key = get_cf_key(netbox_site, ['local', 'level', 'name']) or get_cf_key(netbox_site, ['palika'])
+                    local_level_type_key = get_cf_key(netbox_site, ['local', 'level']) or get_cf_key(netbox_site, ['palika', 'type'])
+                    if local_level_type_key == local_level_name_key:
+                        local_level_type_key = None
+                    ward_key = get_cf_key(netbox_site, ['ward'])
+                    
+                    nb_data = {
+                        'site_id': netbox_site.custom_field_data.get(cf_name, '—'),
+                        'name': netbox_site.name,
+                        'region': netbox_site.region.name if netbox_site.region else '—',
+                        'district': netbox_site.custom_field_data.get(district_key, '—') if district_key else '—',
+                        'local_level_name': netbox_site.custom_field_data.get(local_level_name_key, '—') if local_level_name_key else '—',
+                        'local_level': netbox_site.custom_field_data.get(local_level_type_key, '—') if local_level_type_key else '—',
+                        'ward': netbox_site.custom_field_data.get(ward_key, '—') if ward_key else '—',
+                        'latitude': netbox_site.latitude,
+                        'longitude': netbox_site.longitude,
+                        'status': netbox_site.get_status_display() if hasattr(netbox_site, 'get_status_display') else str(netbox_site.status),
+                    }
+                    
+                    # Fetch devices
+                    devices = Device.objects.filter(site=netbox_site)
+                    for d in devices:
+                        role_name = d.device_role.name if d.device_role else "—"
+                        type_name = d.device_type.model if d.device_type else "—"
+                        nb_devices.append({
+                            'name': d.name,
+                            'status': d.get_status_display() if hasattr(d, 'get_status_display') else str(d.status),
+                            'role': role_name,
+                            'type': type_name,
+                            'absolute_url': d.get_absolute_url() if hasattr(d, 'get_absolute_url') else "#"
+                        })
+            else:
+                messages.error(request, f"Site ID {selected_site_id} not found.")
 
-        # Standard List View
-        correlated_sites = []
-        total_matched = 0
-        total_planned = 0
-        total_operational = 0
-        
-        for item in api_sites:
-            siteid = item.get('siteid', '')
-            status = item.get('status', '')
-            if status == 'Planned':
-                total_planned += 1
-            elif status == 'Operational':
-                total_operational += 1
-                
-            matched_site = netbox_sites_map.get(str(siteid).strip().upper())
-            
-            sync_status = "Missing in NetBox"
-            sync_color = "danger"
-            needs_sync = False
-            
-            if matched_site:
-                total_matched += 1
-                lat_diff = False
-                lon_diff = False
-                status_diff = False
-                cf_diff = False
-                
-                api_lat = item.get('latitude')
-                api_lon = item.get('longitude')
-                
-                # Check status
-                if status == 'Operational' and matched_site.status != 'active':
-                    status_diff = True
-                elif status == 'Planned' and matched_site.status != 'planned':
-                    status_diff = True
-                    
-                # Compare coordinates
-                if api_lat:
-                    try:
-                        if not matched_site.latitude or abs(float(matched_site.latitude) - float(api_lat)) > 0.00001:
-                            lat_diff = True
-                    except (ValueError, TypeError):
-                        pass
-                if api_lon:
-                    try:
-                        if not matched_site.longitude or abs(float(matched_site.longitude) - float(api_lon)) > 0.00001:
-                            lon_diff = True
-                    except (ValueError, TypeError):
-                        pass
-
-                # Compare custom fields
-                district_key = get_cf_key(matched_site, ['district'])
-                local_level_name_key = get_cf_key(matched_site, ['local', 'level', 'name']) or get_cf_key(matched_site, ['palika'])
-                local_level_type_key = get_cf_key(matched_site, ['local', 'level']) or get_cf_key(matched_site, ['palika', 'type'])
-                if local_level_type_key == local_level_name_key:
-                    local_level_type_key = None
-                ward_key = get_cf_key(matched_site, ['ward'])
-
-                if district_key and item.get('district') and matched_site.custom_field_data.get(district_key) != item.get('district'):
-                    cf_diff = True
-                if local_level_name_key and item.get('palika') and matched_site.custom_field_data.get(local_level_name_key) != item.get('palika'):
-                    cf_diff = True
-                if local_level_type_key and item.get('palika_type'):
-                    val = item.get('palika_type')
-                    if val == 'RuralMunicipality':
-                        val = 'Rural Municipality'
-                    if matched_site.custom_field_data.get(local_level_type_key) != val:
-                        cf_diff = True
-                if ward_key and item.get('wardno') is not None:
-                    # check string format
-                    if str(matched_site.custom_field_data.get(ward_key)) != str(item.get('wardno')):
-                        cf_diff = True
-                    
-                if lat_diff or lon_diff or status_diff or cf_diff:
-                    sync_status = "Out of Sync"
-                    sync_color = "warning"
-                    needs_sync = True
-                else:
-                    sync_status = "Synchronized"
-                    sync_color = "success"
-                    
-            if search_q:
-                site_name1 = item.get('sitename1', '').upper()
-                site_name2 = item.get('sitename2', '').upper()
-                province = item.get('province', '').upper()
-                district = item.get('district', '').upper()
-                palika = item.get('palika', '').upper()
-                if (search_q not in str(siteid).upper() and 
-                    search_q not in site_name1 and 
-                    search_q not in site_name2 and 
-                    search_q not in province and 
-                    search_q not in district and 
-                    search_q not in palika):
-                    continue
-                    
-            correlated_sites.append({
-                'api_data': item,
-                'netbox_site': matched_site,
-                'sync_status': sync_status,
-                'sync_color': sync_color,
-                'needs_sync': needs_sync
-            })
-            
         context = {
-            'show_comparison': False,
-            'correlated_sites': correlated_sites,
-            'total_sites': len(api_sites),
-            'total_matched': total_matched,
-            'total_missing': len(api_sites) - total_matched,
-            'total_planned': total_planned,
-            'total_operational': total_operational,
+            'siteid': selected_site_id,
+            'api_site': api_site,
+            'netbox_site': netbox_site,
+            'nb_data': nb_data,
+            'nb_devices': nb_devices,
             'cf_name': cf_name,
             'q': request.GET.get('q', '')
         }
@@ -374,7 +266,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
         
         api_sites, api_error = self._get_api_data()
         if api_error:
-            messages.error(request, f"Sync failed. Could not fetch external API data: {api_error}")
+            messages.error(request, f"Sync failed: {api_error}")
             return redirect('plugins:netbox_demandsite:demandsite_list')
             
         netbox_sites_map = {}
@@ -384,8 +276,6 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 if site_id_val:
                     netbox_sites_map[str(site_id_val).strip().upper()] = site
                     
-        sync_count = 0
-        
         if action == 'sync_single':
             siteid = request.POST.get('siteid')
             api_site = next((x for x in api_sites if str(x.get('siteid')).strip().upper() == str(siteid).strip().upper()), None)
@@ -400,45 +290,15 @@ class DemandsiteListView(LoginRequiredMixin, View):
             else:
                 messages.error(request, f"Failed to sync site {siteid}. Make sure it exists in both systems.")
                 
-        elif action == 'sync_all':
-            for api_site in api_sites:
-                siteid = api_site.get('siteid')
-                netbox_site = netbox_sites_map.get(str(siteid).strip().upper())
-                if netbox_site:
-                    if sync_one_site(netbox_site, api_site, cf_name):
-                        sync_count += 1
-            if sync_count > 0:
-                messages.success(request, f"Successfully synchronized {sync_count} sites.")
-            else:
-                messages.info(request, "All matched sites are already synchronized.")
-                
         return redirect('plugins:netbox_demandsite:demandsite_list')
 
 
 class DemandsiteDetailView(LoginRequiredMixin, View):
     """
-    Detail page for backward compatibility and direct site routing.
-    Redirects back to main view with the site_id query parameter set.
+    Detail page for backward compatibility. Redirects to main view.
     """
     def get(self, request, siteid):
         return redirect(f"/plugins/demandsite/?site_id={siteid}")
 
     def post(self, request, siteid):
-        cf_name = get_site_id_cf_name()
-        api_sites, _ = DemandsiteListView()._get_api_data()
-        api_site = next((x for x in api_sites if str(x.get('siteid')).strip().upper() == str(siteid).strip().upper()), None)
-        
-        netbox_site = None
-        for s in Site.objects.all():
-            if s.custom_field_data:
-                val = s.custom_field_data.get(cf_name)
-                if val and str(val).strip().upper() == str(siteid).strip().upper():
-                    netbox_site = s
-                    break
-        
-        if api_site and netbox_site:
-            if sync_one_site(netbox_site, api_site, cf_name):
-                messages.success(request, f"Successfully synchronized all fields for {siteid} ({netbox_site.name}) to NetBox.")
-            else:
-                messages.info(request, f"Site {siteid} ({netbox_site.name}) is already fully synchronized.")
         return redirect(f"/plugins/demandsite/?site_id={siteid}")
