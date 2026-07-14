@@ -87,29 +87,120 @@
     <h3 class="mb-0 fw-bold">Demandsite Comparison Dashboard</h3>
 </div>
 
-<!-- Premium Stat Cards from First Version -->
-<div class="row mb-4">
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm h-100 py-2" style="background-color: #f8fafc; border-left: 4px solid #64748b !important;">
-            <div class="card-body">
-                <h6 class="text-uppercase text-muted mb-1 fw-bold" style="font-size: 11px;">Total API Sites</h6>
-                <h2 class="display-6 fw-bold mb-0 text-dark">{{ total_api_sites }}</h2>
+<!-- Premium Stats Dashboard -->
+<div class="row g-3 mb-4">
+    <!-- Card 1: Total API Sites -->
+    <div class="col-xl-3 col-md-6">
+        <div class="card border-0 shadow-sm h-100 overflow-hidden" style="border-radius: 12px;">
+            <div style="height: 4px; background: linear-gradient(90deg, #6366f1, #818cf8);"></div>
+            <div class="card-body p-3">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <p class="text-uppercase fw-bold mb-1" style="font-size: 10px; letter-spacing: 0.8px; color: #94a3b8;">Total API Sites</p>
+                        <h2 class="fw-bold mb-0" style="font-size: 2rem; color: #1e293b;">{{ total_api_sites }}</h2>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #eef2ff, #e0e7ff);">
+                        <i class="mdi mdi-antenna fs-4" style="color: #6366f1;"></i>
+                    </div>
+                </div>
+                <div class="mt-2 pt-2" style="border-top: 1px solid #f1f5f9;">
+                    <small class="text-muted" style="font-size: 11px;">
+                        <i class="mdi mdi-information-outline me-1"></i>Sites fetched from Demand API
+                    </small>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm h-100 py-2" style="background-color: #f8fafc; border-left: 4px solid #10b981 !important;">
-            <div class="card-body">
-                <h6 class="text-uppercase text-muted mb-1 fw-bold" style="font-size: 11px;">Total Netbox</h6>
-                <h2 class="display-6 fw-bold mb-0 text-success">{{ total_netbox }}</h2>
+
+    <!-- Card 2: Matched Sites -->
+    <div class="col-xl-3 col-md-6">
+        <div class="card border-0 shadow-sm h-100 overflow-hidden" style="border-radius: 12px;">
+            <div style="height: 4px; background: linear-gradient(90deg, #10b981, #34d399);"></div>
+            <div class="card-body p-3">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <p class="text-uppercase fw-bold mb-1" style="font-size: 10px; letter-spacing: 0.8px; color: #94a3b8;">Matched in NetBox</p>
+                        <h2 class="fw-bold mb-0" style="font-size: 2rem; color: #059669;">{{ total_matched }}</h2>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #ecfdf5, #d1fae5);">
+                        <i class="mdi mdi-check-decagram fs-4" style="color: #10b981;"></i>
+                    </div>
+                </div>
+                <div class="mt-2 pt-2" style="border-top: 1px solid #f1f5f9;">
+                    {% if total_api_sites > 0 %}
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <small class="text-muted" style="font-size: 11px;">Match Rate</small>
+                            <small class="fw-bold" style="font-size: 11px; color: #059669;">
+                                {% widthratio total_matched total_api_sites 100 %}%
+                            </small>
+                        </div>
+                        <div class="progress" style="height: 4px; border-radius: 4px; background-color: #f1f5f9;">
+                            <div class="progress-bar" role="progressbar" style="width: {% widthratio total_matched total_api_sites 100 %}%; background: linear-gradient(90deg, #10b981, #34d399); border-radius: 4px;"></div>
+                        </div>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm h-100 py-2" style="background-color: #f8fafc; border-left: 4px solid #ef4444 !important;">
-            <div class="card-body">
-                <h6 class="text-uppercase text-muted mb-1 fw-bold" style="font-size: 11px;">Mismatch</h6>
-                <h2 class="display-6 fw-bold mb-0 text-danger">{{ total_mismatch }}</h2>
+
+    <!-- Card 3: Not in NetBox -->
+    <div class="col-xl-3 col-md-6">
+        <div class="card border-0 shadow-sm h-100 overflow-hidden" style="border-radius: 12px;">
+            <div style="height: 4px; background: linear-gradient(90deg, #f59e0b, #fbbf24);"></div>
+            <div class="card-body p-3">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <p class="text-uppercase fw-bold mb-1" style="font-size: 10px; letter-spacing: 0.8px; color: #94a3b8;">Not in NetBox</p>
+                        <h2 class="fw-bold mb-0" style="font-size: 2rem; color: #d97706;">{{ total_not_in_netbox }}</h2>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #fffbeb, #fef3c7);">
+                        <i class="mdi mdi-alert-circle-outline fs-4" style="color: #f59e0b;"></i>
+                    </div>
+                </div>
+                <div class="mt-2 pt-2" style="border-top: 1px solid #f1f5f9;">
+                    {% if total_api_sites > 0 %}
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <small class="text-muted" style="font-size: 11px;">Missing Rate</small>
+                            <small class="fw-bold" style="font-size: 11px; color: #d97706;">
+                                {% widthratio total_not_in_netbox total_api_sites 100 %}%
+                            </small>
+                        </div>
+                        <div class="progress" style="height: 4px; border-radius: 4px; background-color: #f1f5f9;">
+                            <div class="progress-bar" role="progressbar" style="width: {% widthratio total_not_in_netbox total_api_sites 100 %}%; background: linear-gradient(90deg, #f59e0b, #fbbf24); border-radius: 4px;"></div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 4: Value Mismatches -->
+    <div class="col-xl-3 col-md-6">
+        <div class="card border-0 shadow-sm h-100 overflow-hidden" style="border-radius: 12px;">
+            <div style="height: 4px; background: linear-gradient(90deg, #ef4444, #f87171);"></div>
+            <div class="card-body p-3">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <p class="text-uppercase fw-bold mb-1" style="font-size: 10px; letter-spacing: 0.8px; color: #94a3b8;">Value Mismatches</p>
+                        <h2 class="fw-bold mb-0" style="font-size: 2rem; color: #dc2626;">{{ total_mismatch }}</h2>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #fef2f2, #fee2e2);">
+                        <i class="mdi mdi-swap-horizontal-bold fs-4" style="color: #ef4444;"></i>
+                    </div>
+                </div>
+                <div class="mt-2 pt-2" style="border-top: 1px solid #f1f5f9;">
+                    {% if total_matched > 0 %}
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <small class="text-muted" style="font-size: 11px;">Of matched sites</small>
+                            <small class="fw-bold" style="font-size: 11px; color: #dc2626;">
+                                {% widthratio total_mismatch total_matched 100 %}%
+                            </small>
+                        </div>
+                        <div class="progress" style="height: 4px; border-radius: 4px; background-color: #f1f5f9;">
+                            <div class="progress-bar" role="progressbar" style="width: {% widthratio total_mismatch total_matched 100 %}%; background: linear-gradient(90deg, #ef4444, #f87171); border-radius: 4px;"></div>
+                        </div>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>

@@ -260,6 +260,8 @@ class DemandsiteListView(LoginRequiredMixin, View):
         
         correlated_sites = []
         total_mismatch = 0
+        total_matched = 0
+        total_not_in_netbox = 0
         
         import re
         
@@ -390,8 +392,12 @@ class DemandsiteListView(LoginRequiredMixin, View):
                     has_mismatch = True
                     needs_sync = True
             
-            if has_mismatch:
-                total_mismatch += 1
+            if matched_site:
+                total_matched += 1
+                if has_mismatch:
+                    total_mismatch += 1
+            else:
+                total_not_in_netbox += 1
                 
             # Filter search query
             if q:
@@ -453,6 +459,8 @@ class DemandsiteListView(LoginRequiredMixin, View):
             'paginator': paginator,
             'total_api_sites': total_api_sites,
             'total_netbox': total_netbox,
+            'total_matched': total_matched,
+            'total_not_in_netbox': total_not_in_netbox,
             'total_mismatch': total_mismatch,
             'cf_name': cf_name,
             'q': request.GET.get('q', '')
