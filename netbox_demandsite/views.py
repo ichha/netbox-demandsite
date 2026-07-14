@@ -3,6 +3,7 @@ import requests
 import re
 from decimal import Decimal
 from django.shortcuts import render, redirect
+from django.urls import reverse
 from django.views.generic import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
@@ -33,7 +34,13 @@ def clean_palika_name(name):
             name_str = name_str.rstrip('_').strip()
             break
     return name_str
-
+def clean_province_name(name):
+    if not name or name == '—':
+        return ''
+    name_str = str(name).strip()
+    if name_str.lower() == 'sudurpaschim':
+        return 'Sudurpashchim'
+    return name_str
 def get_cf_key(site, keywords):
     """
     Finds a custom field name registered for the Site model
@@ -270,7 +277,7 @@ def sync_one_site(netbox_site, api_site, cf_name):
             updated = True
 
     # 2.5. Sync Region/Province
-    api_province = api_site.get('province')
+    api_province = clean_province_name(api_site.get('province'))
     siteid = api_site.get('siteid')
     if api_province:
         region_obj = None
@@ -584,7 +591,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 # Province/Region comparison with suffix normalization
                 # e.g. NetBox region "Bagmati_KTM" matches API "Bagmati" if siteid starts with "KTM"
                 region_diff = False
-                api_province = str(item.get('province', '')).strip()
+                api_province = clean_province_name(item.get('province', ''))
                 nb_region = str(nb_data['region']).strip()
                 if api_province and nb_region and nb_region != '—':
                     # Normalize: if nb_region has underscore suffix like "Bagmati_KTM",
@@ -727,16 +734,29 @@ class DemandsiteListView(LoginRequiredMixin, View):
         action = request.POST.get('action')
         cf_name = get_site_id_cf_name()
         
+        # Read redirect parameters
+        page = request.POST.get('page', '1')
+        q = request.POST.get('q', '').strip()
+        
+        redirect_url = reverse('plugins:netbox_demandsite:demandsite_list')
+        params = []
+        if page and page != '1':
+            params.append(f"page={page}")
+        if q:
+            params.append(f"q={q}")
+        if params:
+            redirect_url = f"{redirect_url}?{'&'.join(params)}"
+
         api_sites, api_error = self._get_api_data()
         if api_error:
             messages.error(request, f"Sync failed: {api_error}")
-            return redirect('plugins:netbox_demandsite:demandsite_list')
+            return redirect(redirect_url)
             
         if action == 'sync_single':
             siteid = request.POST.get('siteid')
             if not siteid:
                 messages.error(request, "Failed to sync: Site ID not provided.")
-                return redirect('plugins:netbox_demandsite:demandsite_list')
+                return redirect(redirect_url)
                 
             api_site = next((x for x in api_sites if str(x.get('siteid')).strip().upper() == str(siteid).strip().upper()), None)
             
@@ -781,7 +801,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
             else:
                 messages.error(request, f"Failed to sync site {siteid}. Site not found in API data.")
                 
-        return redirect('plugins:netbox_demandsite:demandsite_list')
+        return redirect(redirect_url)
 
 
 class DemandsiteDetailView(LoginRequiredMixin, View):

@@ -295,6 +295,8 @@
                                             {% csrf_token %}
                                             <input type="hidden" name="action" value="sync_single">
                                             <input type="hidden" name="siteid" value="{{ site.api_data.siteid }}">
+                                            <input type="hidden" name="page" value="{{ correlated_sites.number }}">
+                                            <input type="hidden" name="q" value="{{ q }}">
                                             <button type="submit" class="btn btn-sm btn-warning d-flex align-items-center justify-content-center mx-auto" title="Sync fields to NetBox">
                                                 <i class="mdi mdi-sync me-1"></i> Sync
                                             </button>
@@ -309,6 +311,8 @@
                                         {% csrf_token %}
                                         <input type="hidden" name="action" value="sync_single">
                                         <input type="hidden" name="siteid" value="{{ site.api_data.siteid }}">
+                                        <input type="hidden" name="page" value="{{ correlated_sites.number }}">
+                                        <input type="hidden" name="q" value="{{ q }}">
                                         <button type="submit" class="btn btn-sm btn-primary d-flex align-items-center justify-content-center mx-auto" title="Add and Sync site to NetBox">
                                             <i class="mdi mdi-plus-circle me-1"></i> Sync
                                         </button>
