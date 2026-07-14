@@ -96,9 +96,11 @@
                         <tr>
                             <!-- Site ID -->
                             <td>
-                                <span class="badge bg-secondary text-white font-monospace" style="font-size: 13px; color: #ffffff !important;">
-                                    {{ site.api_data.siteid }}
-                                </span>
+                                <a href="{% url 'plugins:netbox_demandsite:demandsite_detail' site.api_data.siteid %}" style="text-decoration: none;">
+                                    <span class="badge bg-secondary text-white font-monospace" style="font-size: 13px; color: #ffffff !important;">
+                                        {{ site.api_data.siteid }}
+                                    </span>
+                                </a>
                             </td>
                             
                             <!-- Names -->

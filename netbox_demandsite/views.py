@@ -5,7 +5,7 @@ from django.shortcuts import render, redirect
 from django.views.generic import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
-from dcim.models import Site
+from dcim.models import Site, Device
 from extras.models import CustomField
 from django.contrib.contenttypes.models import ContentType
 
@@ -269,3 +269,241 @@ class DemandsiteListView(LoginRequiredMixin, View):
             netbox_site.save()
             return True
         return False
+
+
+class DemandsiteDetailView(LoginRequiredMixin, View):
+    template_name = 'netbox_demandsite/demandsite_detail.html'
+
+    def _get_site_id_cf_name(self):
+        site_ct = ContentType.objects.get_for_model(Site)
+        try:
+            cf_fields = CustomField.objects.filter(object_types=site_ct)
+            for cf in cf_fields:
+                if 'site' in cf.name.lower() and 'id' in cf.name.lower():
+                    return cf.name
+        except Exception:
+            pass
+        try:
+            cf_fields = CustomField.objects.filter(content_types=site_ct)
+            for cf in cf_fields:
+                if 'site' in cf.name.lower() and 'id' in cf.name.lower():
+                    return cf.name
+        except Exception:
+            pass
+        for site in Site.objects.all()[:20]:
+            if site.custom_field_data:
+                for key in site.custom_field_data.keys():
+                    if 'site' in key.lower() and 'id' in key.lower():
+                        return key
+        return 'site_id'
+
+    def _get_cf_key(self, site, keywords):
+        if not site or not site.custom_field_data:
+            return None
+        for key in site.custom_field_data.keys():
+            key_lower = key.lower()
+            if all(kw in key_lower for kw in keywords):
+                return key
+        return None
+
+    def _get_api_site(self, siteid):
+        url = "https://demandsite.ntc.net.np/api/share/site-dimension"
+        from django.conf import settings
+        plugin_config = settings.PLUGINS_CONFIG.get('netbox_demandsite', {})
+        url = plugin_config.get('api_url', url)
+        api_token = plugin_config.get('api_token', 'ds_share_7b4a2f8c1e9d3056bf47e382d61a9c8f')
+        
+        headers = {
+            "Authorization": f"Bearer {api_token}"
+        }
+        try:
+            response = requests.get(url, headers=headers, timeout=15)
+            response.raise_for_status()
+            sites = response.json()
+            for x in sites:
+                if str(x.get('siteid')).strip().upper() == str(siteid).strip().upper():
+                    return x, None
+            return None, "Site ID not found in external API data."
+        except Exception as e:
+            return None, str(e)
+
+    def get(self, request, siteid):
+        api_site, api_error = self._get_api_site(siteid)
+        if api_error:
+            messages.error(request, f"Failed to fetch external site details: {api_error}")
+            return redirect('plugins:netbox_demandsite:demandsite_list')
+
+        cf_name = self._get_site_id_cf_name()
+        
+        # Find matching NetBox site
+        netbox_site = None
+        for s in Site.objects.all():
+            if s.custom_field_data:
+                val = s.custom_field_data.get(cf_name)
+                if val and str(val).strip().upper() == str(siteid).strip().upper():
+                    netbox_site = s
+                    break
+        
+        nb_data = {}
+        nb_devices = []
+        
+        if netbox_site:
+            district_key = self._get_cf_key(netbox_site, ['district'])
+            local_level_name_key = self._get_cf_key(netbox_site, ['local', 'level', 'name']) or self._get_cf_key(netbox_site, ['palika'])
+            local_level_type_key = self._get_cf_key(netbox_site, ['local', 'level']) or self._get_cf_key(netbox_site, ['palika', 'type'])
+            if local_level_type_key == local_level_name_key:
+                local_level_type_key = None
+            ward_key = self._get_cf_key(netbox_site, ['ward'])
+            
+            nb_data = {
+                'site_id': netbox_site.custom_field_data.get(cf_name, '—'),
+                'name': netbox_site.name,
+                'region': netbox_site.region.name if netbox_site.region else '—',
+                'district': netbox_site.custom_field_data.get(district_key, '—') if district_key else '—',
+                'local_level_name': netbox_site.custom_field_data.get(local_level_name_key, '—') if local_level_name_key else '—',
+                'local_level': netbox_site.custom_field_data.get(local_level_type_key, '—') if local_level_type_key else '—',
+                'ward': netbox_site.custom_field_data.get(ward_key, '—') if ward_key else '—',
+                'latitude': netbox_site.latitude,
+                'longitude': netbox_site.longitude,
+                'status': netbox_site.get_status_display() if hasattr(netbox_site, 'get_status_display') else str(netbox_site.status),
+            }
+            
+            # Fetch devices under Site
+            devices = Device.objects.filter(site=netbox_site)
+            for d in devices:
+                role_name = d.device_role.name if d.device_role else "—"
+                type_name = d.device_type.model if d.device_type else "—"
+                nb_devices.append({
+                    'name': d.name,
+                    'status': d.get_status_display() if hasattr(d, 'get_status_display') else str(d.status),
+                    'role': role_name,
+                    'type': type_name,
+                    'absolute_url': d.get_absolute_url() if hasattr(d, 'get_absolute_url') else "#"
+                })
+        
+        context = {
+            'siteid': siteid,
+            'api_site': api_site,
+            'netbox_site': netbox_site,
+            'nb_data': nb_data,
+            'nb_devices': nb_devices,
+            'cf_name': cf_name,
+        }
+        return render(request, self.template_name, context)
+
+    def post(self, request, siteid):
+        api_site, api_error = self._get_api_site(siteid)
+        if api_error:
+            messages.error(request, f"Sync failed. Could not fetch external site details: {api_error}")
+            return redirect('plugins:netbox_demandsite:demandsite_list')
+            
+        cf_name = self._get_site_id_cf_name()
+        
+        netbox_site = None
+        for s in Site.objects.all():
+            if s.custom_field_data:
+                val = s.custom_field_data.get(cf_name)
+                if val and str(val).strip().upper() == str(siteid).strip().upper():
+                    netbox_site = s
+                    break
+                    
+        if not netbox_site:
+            messages.error(request, f"Cannot sync. NetBox Site with Site ID {siteid} does not exist.")
+            return redirect('plugins:netbox_demandsite:demandsite_detail', siteid=siteid)
+            
+        updated = False
+        
+        # 1. Sync Coordinates (Latitude / Longitude)
+        api_lat = api_site.get('latitude')
+        api_lon = api_site.get('longitude')
+        if api_lat:
+            try:
+                dec_lat = Decimal(str(api_lat))
+                if not netbox_site.latitude or abs(netbox_site.latitude - dec_lat) > Decimal('0.00001'):
+                    netbox_site.latitude = dec_lat
+                    updated = True
+            except Exception:
+                pass
+        if api_lon:
+            try:
+                dec_lon = Decimal(str(api_lon))
+                if not netbox_site.longitude or abs(netbox_site.longitude - dec_lon) > Decimal('0.00001'):
+                    netbox_site.longitude = dec_lon
+                    updated = True
+            except Exception:
+                pass
+                
+        # 2. Sync Status
+        api_status = api_site.get('status')
+        if api_status == 'Operational' and netbox_site.status != 'active':
+            netbox_site.status = 'active'
+            updated = True
+        elif api_status == 'Planned' and netbox_site.status != 'planned':
+            netbox_site.status = 'planned'
+            updated = True
+            
+        # 3. Sync Description containing Local Divisions
+        desc_parts = []
+        if api_site.get('province'):
+            desc_parts.append(f"Province: {api_site.get('province')}")
+        if api_site.get('district'):
+            desc_parts.append(f"District: {api_site.get('district')}")
+        if api_site.get('palika'):
+            desc_parts.append(f"Palika: {api_site.get('palika')}")
+        new_desc = " | ".join(desc_parts)
+        if new_desc and netbox_site.description != new_desc:
+            netbox_site.description = new_desc
+            updated = True
+
+        # 4. Sync Custom Fields (District, Local Level Name, Local Level, Ward)
+        district_key = self._get_cf_key(netbox_site, ['district'])
+        local_level_name_key = self._get_cf_key(netbox_site, ['local', 'level', 'name']) or self._get_cf_key(netbox_site, ['palika'])
+        local_level_type_key = self._get_cf_key(netbox_site, ['local', 'level']) or self._get_cf_key(netbox_site, ['palika', 'type'])
+        if local_level_type_key == local_level_name_key:
+            local_level_type_key = None
+        ward_key = self._get_cf_key(netbox_site, ['ward'])
+        
+        if district_key and api_site.get('district'):
+            val = api_site.get('district')
+            if netbox_site.custom_field_data.get(district_key) != val:
+                netbox_site.custom_field_data[district_key] = val
+                updated = True
+                
+        if local_level_name_key and api_site.get('palika'):
+            val = api_site.get('palika')
+            # Strip suffix if they want exact, but let's keep what matches.
+            # In the NetBox value from their example: Local Level Name is 'Makalu' (API has 'Makalu Nagarpalika').
+            # We will just write the API value directly.
+            if netbox_site.custom_field_data.get(local_level_name_key) != val:
+                netbox_site.custom_field_data[local_level_name_key] = val
+                updated = True
+                
+        if local_level_type_key and api_site.get('palika_type'):
+            val = api_site.get('palika_type')
+            if val == 'RuralMunicipality':
+                val = 'Rural Municipality'
+            if netbox_site.custom_field_data.get(local_level_type_key) != val:
+                netbox_site.custom_field_data[local_level_type_key] = val
+                updated = True
+                
+        if ward_key and api_site.get('wardno') is not None:
+            val = api_site.get('wardno')
+            try:
+                existing_type = type(netbox_site.custom_field_data.get(ward_key))
+                if existing_type is int:
+                    val = int(val)
+                else:
+                    val = str(val)
+                if netbox_site.custom_field_data.get(ward_key) != val:
+                    netbox_site.custom_field_data[ward_key] = val
+                    updated = True
+            except Exception:
+                pass
+                
+        if updated:
+            netbox_site.save()
+            messages.success(request, f"Successfully synchronized all fields for {siteid} ({netbox_site.name}) to NetBox.")
+        else:
+            messages.info(request, f"Site {siteid} ({netbox_site.name}) is already fully synchronized.")
+            
+        return redirect('plugins:netbox_demandsite:demandsite_detail', siteid=siteid)
