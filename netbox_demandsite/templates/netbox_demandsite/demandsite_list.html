@@ -1,0 +1,235 @@
+{% extends 'base/layout.html' %}
+{% load helpers %}
+
+{% block title %}Demandsite Sites Correlation{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <!-- Stat Cards -->
+    <div class="col-md-3">
+        <div class="card bg-light text-center border-0 shadow-sm h-100 py-2">
+            <div class="card-body">
+                <h6 class="text-uppercase text-muted mb-1">Total API Sites</h6>
+                <h2 class="display-6 fw-bold mb-0 text-dark">{{ total_sites }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-light text-center border-0 shadow-sm h-100 py-2">
+            <div class="card-body">
+                <h6 class="text-uppercase text-muted mb-1">Matched Sites</h6>
+                <h2 class="display-6 fw-bold mb-0 text-success">{{ total_matched }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-light text-center border-0 shadow-sm h-100 py-2">
+            <div class="card-body">
+                <h6 class="text-uppercase text-muted mb-1">Missing in NetBox</h6>
+                <h2 class="display-6 fw-bold mb-0 text-danger">{{ total_missing }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-light text-center border-0 shadow-sm h-100 py-2">
+            <div class="card-body">
+                <h6 class="text-uppercase text-muted mb-1">Status Breakdown</h6>
+                <h4 class="fw-bold mb-1 text-primary">
+                    {{ total_operational }} <span class="text-muted fw-normal" style="font-size: 14px;">Operational</span>
+                </h4>
+                <h4 class="fw-bold mb-0 text-warning">
+                    {{ total_planned }} <span class="text-muted fw-normal" style="font-size: 14px;">Planned</span>
+                </h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Action Controls -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <!-- Search Form -->
+    <form method="get" class="d-flex" style="max-width: 400px; width: 100%;">
+        <div class="input-group">
+            <input type="text" name="q" class="form-control" placeholder="Search by Site ID, Name, Palika, District..." value="{{ q }}">
+            <button class="btn btn-outline-secondary" type="submit">
+                <i class="mdi mdi-magnify"></i> Search
+            </button>
+            {% if q %}
+                <a href="?" class="btn btn-outline-danger" title="Clear Search">
+                    <i class="mdi mdi-close"></i>
+                </a>
+            {% endif %}
+        </div>
+    </form>
+
+    <!-- Bulk Sync Action -->
+    {% if total_matched > 0 %}
+        <form method="post" action="">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="sync_all">
+            <button type="submit" class="btn btn-success d-flex align-items-center">
+                <i class="mdi mdi-database-sync me-2"></i> Sync All Matched Sites
+            </button>
+        </form>
+    {% endif %}
+</div>
+
+<!-- Main Data Table -->
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Site ID</th>
+                        <th>Site Name (EN / NE)</th>
+                        <th>Location Details</th>
+                        <th>API Status</th>
+                        <th>Technologies</th>
+                        <th>Coordinates</th>
+                        <th>NetBox Site Correlation</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for site in correlated_sites %}
+                        <tr>
+                            <!-- Site ID -->
+                            <td>
+                                <span class="badge bg-secondary font-monospace" style="font-size: 13px;">
+                                    {{ site.api_data.siteid }}
+                                </span>
+                            </td>
+                            
+                            <!-- Names -->
+                            <td>
+                                <div class="fw-bold">{{ site.api_data.sitename1 }}</div>
+                                {% if site.api_data.sitename2 and site.api_data.sitename2 != site.api_data.sitename1 %}
+                                    <div class="text-muted small">{{ site.api_data.sitename2 }}</div>
+                                {% endif %}
+                                {% if site.api_data.province_nepali or site.api_data.district_nepali or site.api_data.palika_nepali %}
+                                    <div class="text-muted small font-italic" style="font-family: 'Mukta', sans-serif;">
+                                        {% if site.api_data.palika_nepali %}{{ site.api_data.palika_nepali }}{% endif %}
+                                        {% if site.api_data.district_nepali %}, {{ site.api_data.district_nepali }}{% endif %}
+                                    </div>
+                                {% endif %}
+                            </td>
+                            
+                            <!-- Location Details -->
+                            <td>
+                                <div class="small">
+                                    <strong>Province:</strong> {{ site.api_data.province }}<br>
+                                    <strong>District:</strong> {{ site.api_data.district }}<br>
+                                    <strong>Palika:</strong> {{ site.api_data.palika }} {% if site.api_data.palika_type %}({{ site.api_data.palika_type }}){% endif %}
+                                    {% if site.api_data.wardno is not None %}
+                                        <span class="text-muted">Ward {{ site.api_data.wardno }}</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            
+                            <!-- API Status -->
+                            <td>
+                                {% if site.api_data.status == 'Operational' %}
+                                    <span class="badge bg-success">Operational</span>
+                                {% elif site.api_data.status == 'Planned' %}
+                                    <span class="badge bg-info text-dark">Planned</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ site.api_data.status }}</span>
+                                {% endif %}
+                            </td>
+                            
+                            <!-- Technologies -->
+                            <td>
+                                <div class="d-flex flex-wrap gap-1" style="max-width: 200px;">
+                                    {% if site.api_data.operational_technologies %}
+                                        {% for tech in site.api_data.operational_technologies %}
+                                            {% if '4G' in tech.technology %}
+                                                <span class="badge bg-primary text-white" title="On-air: {{ tech.on_air_date }}">{{ tech.technology }}</span>
+                                            {% elif '3G' in tech.technology %}
+                                                <span class="badge bg-info text-dark" title="On-air: {{ tech.on_air_date }}">{{ tech.technology }}</span>
+                                            {% elif '2G' in tech.technology %}
+                                                <span class="badge bg-secondary text-white" title="On-air: {{ tech.on_air_date }}">{{ tech.technology }}</span>
+                                            {% elif '5G' in tech.technology %}
+                                                <span class="badge bg-warning text-dark" title="On-air: {{ tech.on_air_date }}">{{ tech.technology }}</span>
+                                            {% else %}
+                                                <span class="badge bg-light text-dark" title="On-air: {{ tech.on_air_date }}">{{ tech.technology }}</span>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="text-muted small">None</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            
+                            <!-- Coordinates -->
+                            <td>
+                                <div class="small text-nowrap">
+                                    {% if site.api_data.latitude and site.api_data.longitude %}
+                                        <i class="mdi mdi-map-marker text-danger"></i> {{ site.api_data.latitude }}, {{ site.api_data.longitude }}
+                                    {% else %}
+                                        <span class="text-muted">No Coordinates</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            
+                            <!-- NetBox Correlation -->
+                            <td>
+                                {% if site.netbox_site %}
+                                    <div class="d-flex align-items-center">
+                                        <span class="badge bg-{{ site.sync_color }} me-2">{{ site.sync_status }}</span>
+                                        <a href="{{ site.netbox_site.get_absolute_url }}" class="fw-bold" target="_blank">
+                                            {{ site.netbox_site.name }}
+                                        </a>
+                                    </div>
+                                    <div class="text-muted small">
+                                        {% if site.netbox_site.latitude and site.netbox_site.longitude %}
+                                            NB: {{ site.netbox_site.latitude }}, {{ site.netbox_site.longitude }}
+                                        {% else %}
+                                            NB: No coordinates
+                                        {% endif %}
+                                        <br>
+                                        NB Status: {{ site.netbox_site.status|capfirst }}
+                                    </div>
+                                {% else %}
+                                    <span class="badge bg-danger">Missing in NetBox</span>
+                                {% endif %}
+                            </td>
+                            
+                            <!-- Actions -->
+                            <td class="text-end">
+                                {% if site.netbox_site %}
+                                    {% if site.needs_sync %}
+                                        <form method="post" action="" style="display:inline;">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="sync_single">
+                                            <input type="hidden" name="siteid" value="{{ site.api_data.siteid }}">
+                                            <button type="submit" class="btn btn-sm btn-warning d-inline-flex align-items-center" title="Sync details to NetBox">
+                                                <i class="mdi mdi-sync me-1"></i> Sync
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <button class="btn btn-sm btn-outline-success" disabled>
+                                            <i class="mdi mdi-check-circle"></i> Synced
+                                        </button>
+                                    {% endif %}
+                                {% else %}
+                                    <button class="btn btn-sm btn-outline-secondary" disabled title="Create site in NetBox first with Custom Field: {{ cf_name }}">
+                                        N/A
+                                    </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center py-4 text-muted">
+                                <i class="mdi mdi-alert-circle-outline display-6"></i>
+                                <p class="mt-2 mb-0">No sites found matching your filter criteria.</p>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
