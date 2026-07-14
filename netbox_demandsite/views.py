@@ -7,7 +7,7 @@ from django.views.generic import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.utils.text import slugify
-from dcim.models import Site, Device, Region
+from dcim.models import Site, Device, Region, DeviceType, Manufacturer
 from extras.models import CustomField
 from django.contrib.contenttypes.models import ContentType
 
@@ -15,15 +15,32 @@ logger = logging.getLogger('netbox.plugins.netbox_demandsite')
 
 def get_cf_key(site, keywords):
     """
-    Finds a key in the site's custom_field_data dictionary
+    Finds a custom field name registered for the Site model
     that contains all the specified keywords (case-insensitive).
     """
-    if not site or not site.custom_field_data:
-        return None
-    for key in site.custom_field_data.keys():
-        key_lower = key.lower()
-        if all(kw in key_lower for kw in keywords):
-            return key
+    site_ct = ContentType.objects.get_for_model(Site)
+    try:
+        cf_fields = CustomField.objects.filter(object_types=site_ct)
+        for cf in cf_fields:
+            cf_name_lower = cf.name.lower()
+            if all(kw in cf_name_lower for kw in keywords):
+                return cf.name
+    except Exception:
+        pass
+    try:
+        cf_fields = CustomField.objects.filter(content_types=site_ct)
+        for cf in cf_fields:
+            cf_name_lower = cf.name.lower()
+            if all(kw in cf_name_lower for kw in keywords):
+                return cf.name
+    except Exception:
+        pass
+        
+    if site and site.custom_field_data:
+        for key in site.custom_field_data.keys():
+            key_lower = key.lower()
+            if all(kw in key_lower for kw in keywords):
+                return key
     return None
 
 def get_site_id_cf_name():
@@ -100,6 +117,94 @@ def resolve_cf_display(cf_name, val, choices_map):
         return label
     return str(val)
 
+try:
+    from dcim.models import DeviceRole
+except ImportError:
+    from extras.models import DeviceRole
+
+def get_or_create_device_role(name, color="9e9e9e"):
+    role = DeviceRole.objects.filter(name=name).first()
+    if not role:
+        role = DeviceRole(name=name, slug=slugify(name), color=color)
+        role.save()
+    return role
+
+def get_or_create_manufacturer(name):
+    mfg = Manufacturer.objects.filter(name=name).first()
+    if not mfg:
+        mfg = Manufacturer(name=name, slug=slugify(name))
+        mfg.save()
+    return mfg
+
+def get_or_create_device_type(model_name, manufacturer):
+    dt = DeviceType.objects.filter(model=model_name, manufacturer=manufacturer).first()
+    if not dt:
+        dt = DeviceType(model=model_name, slug=slugify(model_name), manufacturer=manufacturer)
+        dt.save()
+    return dt
+
+def create_netbox_device(name, site, role, dtype):
+    try:
+        Device.objects.create(
+            name=name,
+            site=site,
+            role=role,
+            device_type=dtype,
+            status='active'
+        )
+    except Exception:
+        Device.objects.create(
+            name=name,
+            site=site,
+            device_role=role,
+            device_type=dtype,
+            status='active'
+        )
+
+def add_devices_for_site(netbox_site, api_site):
+    technologies = api_site.get('technologies')
+    if not technologies:
+        return
+        
+    mfg = get_or_create_manufacturer("Huawei Technologies Co. Ltd.")
+    siteid = api_site.get('siteid')
+    sitename = api_site.get('sitename') or netbox_site.name
+    
+    tech_list = technologies if isinstance(technologies, list) else str(technologies).split(',')
+    
+    has_2g = False
+    has_3g = False
+    has_4g = False
+    for tech in tech_list:
+        tech_upper = str(tech).upper()
+        if '2G' in tech_upper:
+            has_2g = True
+        if '3G' in tech_upper:
+            has_3g = True
+        if '4G' in tech_upper:
+            has_4g = True
+            
+    if has_2g:
+        dev_name = f"{siteid}_{sitename}_G"
+        role = get_or_create_device_role("WSD/BTS/2G", color="4caf50")
+        dtype = get_or_create_device_type("GSM 2G", mfg)
+        if not Device.objects.filter(name=dev_name, site=netbox_site).exists():
+            create_netbox_device(dev_name, netbox_site, role, dtype)
+            
+    if has_3g:
+        dev_name = f"{siteid}_{sitename}_U"
+        role = get_or_create_device_role("WSD/BTS/3G", color="4caf50")
+        dtype = get_or_create_device_type("UMTS 3G", mfg)
+        if not Device.objects.filter(name=dev_name, site=netbox_site).exists():
+            create_netbox_device(dev_name, netbox_site, role, dtype)
+            
+    if has_4g:
+        dev_name = f"{siteid}_{sitename}_L"
+        role = get_or_create_device_role("WSD/BTS/4G", color="4caf50")
+        dtype = get_or_create_device_type("LTE 4G", mfg)
+        if not Device.objects.filter(name=dev_name, site=netbox_site).exists():
+            create_netbox_device(dev_name, netbox_site, role, dtype)
+
 def sync_one_site(netbox_site, api_site, cf_name):
     """
     Synchronizes standard fields and all custom fields (District, Palika, Ward)
@@ -112,16 +217,16 @@ def sync_one_site(netbox_site, api_site, cf_name):
     api_lon = api_site.get('longitude')
     if api_lat:
         try:
-            dec_lat = Decimal(str(api_lat))
-            if not netbox_site.latitude or abs(netbox_site.latitude - dec_lat) > Decimal('0.00001'):
+            dec_lat = Decimal(str(api_lat).strip())
+            if netbox_site.latitude != dec_lat:
                 netbox_site.latitude = dec_lat
                 updated = True
         except Exception:
             pass
     if api_lon:
         try:
-            dec_lon = Decimal(str(api_lon))
-            if not netbox_site.longitude or abs(netbox_site.longitude - dec_lon) > Decimal('0.00001'):
+            dec_lon = Decimal(str(api_lon).strip())
+            if netbox_site.longitude != dec_lon:
                 netbox_site.longitude = dec_lon
                 updated = True
         except Exception:
@@ -239,10 +344,18 @@ def sync_one_site(netbox_site, api_site, cf_name):
         except Exception:
             pass
             
+    # Always run device creation/synchronization
+    devices_updated = False
+    try:
+        add_devices_for_site(netbox_site, api_site)
+        devices_updated = True
+    except Exception as e:
+        logger.error(f"Error adding devices for site {netbox_site.name}: {e}")
+
     if updated:
         netbox_site.save()
         return True
-    return False
+    return devices_updated
 
 
 class DemandsiteListView(LoginRequiredMixin, View):
@@ -349,6 +462,12 @@ class DemandsiteListView(LoginRequiredMixin, View):
             needs_sync = False
             region_diff = False
             palika_diff = False
+            lat_diff = False
+            lon_diff = False
+            district_diff = False
+            local_level_diff = False
+            ward_diff = False
+            status_diff = False
             
             if not matched_site:
                 has_mismatch = True
@@ -425,6 +544,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
                         cf_diff = True
 
                 if district_key and item.get('district') and nb_data['district'] != item.get('district'):
+                    district_diff = True
                     cf_diff = True
                 # Local level name: compare first word only
                 # e.g. "Kathmandu Mahanagarpalika" (API) vs "Kathmandu" (NetBox) => match
@@ -446,9 +566,11 @@ class DemandsiteListView(LoginRequiredMixin, View):
                     }
                     val = mapping.get(val, val)
                     if nb_data['local_level'] != val:
+                        local_level_diff = True
                         cf_diff = True
                 if ward_key and item.get('wardno') is not None:
                     if str(nb_data['ward']) != str(item.get('wardno')):
+                        ward_diff = True
                         cf_diff = True
                         
                 if lat_diff or lon_diff or status_diff or cf_diff:
@@ -485,6 +607,12 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 'needs_sync': needs_sync,
                 'region_diff': region_diff,
                 'palika_diff': palika_diff,
+                'lat_diff': lat_diff,
+                'lon_diff': lon_diff,
+                'district_diff': district_diff,
+                'local_level_diff': local_level_diff,
+                'ward_diff': ward_diff,
+                'status_diff': status_diff,
             })
             
         # Pagination

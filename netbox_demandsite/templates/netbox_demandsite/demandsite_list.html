@@ -352,7 +352,7 @@
                             </td>
                             
                             <!-- District -->
-                            <td class="{% if site.netbox_site and site.api_data.district != site.nb_data.district %}cell-mismatch{% endif %}">
+                            <td class="{% if site.district_diff %}cell-mismatch{% endif %}">
                                 {{ site.nb_data.district }}
                             </td>
                             
@@ -362,29 +362,27 @@
                             </td>
                             
                             <!-- Local Level Type -->
-                            {% with api_palika_type=site.api_data.palika_type %}
-                            <td class="{% if site.netbox_site and api_palika_type != site.nb_data.local_level and api_palika_type|slugify != site.nb_data.local_level|slugify %}cell-mismatch{% endif %}">
+                            <td class="{% if site.local_level_diff %}cell-mismatch{% endif %}">
                                 {{ site.nb_data.local_level }}
                             </td>
-                            {% endwith %}
                             
                             <!-- Ward -->
-                            <td class="{% if site.netbox_site and site.api_data.wardno|stringformat:"s" != site.nb_data.ward|stringformat:"s" %}cell-mismatch{% endif %}">
+                            <td class="{% if site.ward_diff %}cell-mismatch{% endif %}">
                                 {{ site.nb_data.ward }}
                             </td>
                             
                             <!-- Latitude -->
-                            <td class="font-monospace {% if site.netbox_site and site.api_data.latitude|stringformat:".5f" != site.nb_data.latitude|stringformat:".5f" %}cell-mismatch{% endif %}">
+                            <td class="font-monospace {% if site.lat_diff %}cell-mismatch{% endif %}">
                                 {{ site.nb_data.latitude }}
                             </td>
                             
                             <!-- Longitude -->
-                            <td class="font-monospace {% if site.netbox_site and site.api_data.longitude|stringformat:".5f" != site.nb_data.longitude|stringformat:".5f" %}cell-mismatch{% endif %}">
+                            <td class="font-monospace {% if site.lon_diff %}cell-mismatch{% endif %}">
                                 {{ site.nb_data.longitude }}
                             </td>
                             
                             <!-- Status -->
-                            <td class="{% if site.netbox_site and site.api_data.status == 'Operational' and site.nb_data.status != 'Active' and site.nb_data.status != 'active' or site.api_data.status == 'Planned' and site.nb_data.status != 'Planned' and site.nb_data.status != 'planned' %}cell-mismatch{% endif %}">
+                            <td class="{% if site.status_diff %}cell-mismatch{% endif %}">
                                 {% if site.netbox_site %}
                                     {% if site.nb_data.status == 'Active' or site.nb_data.status == 'active' %}
                                         <span class="badge bg-success badge-status">Active</span>
