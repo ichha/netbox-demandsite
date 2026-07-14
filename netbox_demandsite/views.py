@@ -245,7 +245,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
         
         # Build mapping of NetBox sites by Site ID custom field (case-insensitive)
         netbox_sites_map = {}
-        for site in Site.objects.all():
+        for site in Site.objects.select_related('region'):
             if site.custom_field_data:
                 site_id_val = site.custom_field_data.get(cf_name)
                 if site_id_val:
@@ -325,14 +325,6 @@ class DemandsiteListView(LoginRequiredMixin, View):
                     local_level_type_key = None
                 ward_key = get_cf_key(matched_site, ['ward'])
                 
-                # Fetch devices under Site with roles: WSD/BTS/2G, WSD/BTS/3G, WSD/BTS/4G
-                devices = Device.objects.filter(site=matched_site)
-                dev_names = []
-                for d in devices:
-                    role_obj = getattr(d, 'role', None) or getattr(d, 'device_role', None)
-                    if role_obj and str(role_obj.name).strip() in ['WSD/BTS/2G', 'WSD/BTS/3G', 'WSD/BTS/4G']:
-                        dev_names.append(d.name)
-                
                 nb_data = {
                     'site_id': resolve_cf_display(cf_name, matched_site.custom_field_data.get(cf_name), choices_map),
                     'name': matched_site.name,
@@ -344,7 +336,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
                     'latitude': matched_site.latitude if matched_site.latitude is not None else '—',
                     'longitude': matched_site.longitude if matched_site.longitude is not None else '—',
                     'status': matched_site.get_status_display() if hasattr(matched_site, 'get_status_display') else str(matched_site.status),
-                    'devices': ",".join(dev_names) if dev_names else '—',
+                    'devices': '—',
                 }
                 
                 # Check mismatch comparing resolved display labels
@@ -434,6 +426,27 @@ class DemandsiteListView(LoginRequiredMixin, View):
             paginated_sites = paginator.page(1)
         except EmptyPage:
             paginated_sites = paginator.page(paginator.num_pages)
+
+        # Bulk pre-fetch devices ONLY for the 50 sites on this page
+        page_site_ids = [item['netbox_site'].id for item in paginated_sites if item['netbox_site']]
+        if page_site_ids:
+            devices = Device.objects.filter(site_id__in=page_site_ids)
+            
+            from collections import defaultdict
+            site_devices_map = defaultdict(list)
+            for d in devices:
+                site_devices_map[d.site_id].append(d)
+                
+            for item in paginated_sites:
+                nb_site = item['netbox_site']
+                if nb_site and nb_site.id in site_devices_map:
+                    dev_names = []
+                    for d in site_devices_map[nb_site.id]:
+                        role_obj = getattr(d, 'role', None) or getattr(d, 'device_role', None)
+                        if role_obj and str(role_obj.name).strip() in ['WSD/BTS/2G', 'WSD/BTS/3G', 'WSD/BTS/4G']:
+                            dev_names.append(d.name)
+                    if dev_names:
+                        item['nb_data']['devices'] = ",".join(dev_names)
 
         context = {
             'correlated_sites': paginated_sites,

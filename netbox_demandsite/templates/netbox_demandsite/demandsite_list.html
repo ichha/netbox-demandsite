@@ -30,12 +30,15 @@
         border-bottom: 1px solid #f1f5f9;
         color: #334155;
     }
-    /* Alternating site pairs with elegant soft tints */
+    /* Alternating site pairs with elegant soft tints (using !important to override NetBox theme) */
     .row-pair-even td {
-        background-color: #ffffff;
+        background-color: #ffffff !important;
     }
     .row-pair-odd td {
-        background-color: #fffaf7; /* Elegant, premium soft orange tint */
+        background-color: #fffaf7 !important; /* Elegant, premium soft orange tint */
+    }
+    .row-border-bottom td {
+        border-bottom: 2px solid #cbd5e1 !important; /* Elegant divider between site pairs */
     }
     /* Highlight cell for mismatch */
     .cell-mismatch {
@@ -130,7 +133,7 @@
                         <th style="width: 7%;">Lat</th>
                         <th style="width: 7%;">Long</th>
                         <th style="width: 6%;">Status</th>
-                        <th style="width: 10%;">Technology</th>
+                        <th style="width: 7%;">Technology</th>
                         <th class="text-center" style="width: 5%;">Actions</th>
                     </tr>
                 </thead>
@@ -184,11 +187,9 @@
                             <!-- Technologies list -->
                             <td>
                                 {% if site.api_data.technologies %}
-                                    {% for tech in site.api_data.technologies.split|join:","|make_list %}
-                                        <!-- Clean up string formatting for technology list -->
-                                    {% endfor %}
-                                    <!-- Comma-separated list rendered cleanly -->
-                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle badge-tech">{{ site.api_data.technologies }}</span>
+                                    <div class="text-wrap" style="max-width: 140px; font-size: 11px; word-break: break-all;">
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle badge-tech">{{ site.api_data.technologies }}</span>
+                                    </div>
                                 {% else %}
                                     <span class="text-muted small">—</span>
                                 {% endif %}
@@ -217,9 +218,9 @@
 
                         <!-- Row 2: Netbox -->
                         {% if forloop.counter|divisibleby:2 %}
-                            <tr class="row-pair-even">
+                            <tr class="row-pair-even row-border-bottom">
                         {% else %}
-                            <tr class="row-pair-odd">
+                            <tr class="row-pair-odd row-border-bottom">
                         {% endif %}
                             <!-- NetBox Source -->
                             <td><span class="badge bg-success-subtle text-success border border-success-subtle py-1">Netbox</span></td>
@@ -291,7 +292,9 @@
                             <!-- NetBox Devices with specific roles -->
                             <td>
                                 {% if site.nb_data.devices and site.nb_data.devices != '—' %}
-                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle badge-tech">{{ site.nb_data.devices }}</span>
+                                    <div class="text-wrap" style="max-width: 140px; font-size: 11px; word-break: break-all;">
+                                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle badge-tech">{{ site.nb_data.devices }}</span>
+                                    </div>
                                 {% else %}
                                     <span class="text-muted small">—</span>
                                 {% endif %}
