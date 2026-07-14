@@ -34,9 +34,13 @@ class DemandsiteListView(LoginRequiredMixin, View):
         return 'site_id'  # Default fallback
 
     def _get_api_data(self):
-        url = "https://demandsite.ntc.net.np/api/share/site-dimension"
+        from django.conf import settings
+        plugin_config = settings.PLUGINS_CONFIG.get('netbox_demandsite', {})
+        url = plugin_config.get('api_url', 'https://demandsite.ntc.net.np/api/share/site-dimension')
+        api_token = plugin_config.get('api_token', 'ds_share_7b4a2f8c1e9d3056bf47e382d61a9c8f')
+        
         headers = {
-            "Authorization": "Bearer ds_share_7b4a2f8c1e9d3056bf47e382d61a9c8f"
+            "Authorization": f"Bearer {api_token}"
         }
         try:
             response = requests.get(url, headers=headers, timeout=15)
