@@ -282,7 +282,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
                     tech_list.append(m.group(1))
                 else:
                     tech_list.append(item.get('technology'))
-            api_techs = ",".join(sorted(list(set(tech_list))))
+            api_techs = sorted(list(set(tech_list)))
             
             api_data = {
                 'siteid': siteid,
@@ -309,7 +309,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 'latitude': '—',
                 'longitude': '—',
                 'status': '—',
-                'devices': '—',
+                'devices': [],
             }
             
             has_mismatch = False
@@ -336,7 +336,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
                     'latitude': matched_site.latitude if matched_site.latitude is not None else '—',
                     'longitude': matched_site.longitude if matched_site.longitude is not None else '—',
                     'status': matched_site.get_status_display() if hasattr(matched_site, 'get_status_display') else str(matched_site.status),
-                    'devices': '—',
+                    'devices': [],
                 }
                 
                 # Check mismatch comparing resolved display labels
@@ -446,7 +446,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
                         if role_obj and str(role_obj.name).strip() in ['WSD/BTS/2G', 'WSD/BTS/3G', 'WSD/BTS/4G']:
                             dev_names.append(d.name)
                     if dev_names:
-                        item['nb_data']['devices'] = ",".join(dev_names)
+                        item['nb_data']['devices'] = dev_names
 
         context = {
             'correlated_sites': paginated_sites,
