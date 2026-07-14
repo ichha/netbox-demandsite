@@ -268,6 +268,9 @@ def sync_one_site(netbox_site, api_site, cf_name):
     elif api_status == 'Planned' and netbox_site.status != 'planned':
         netbox_site.status = 'planned'
         updated = True
+    elif api_status == 'Discontinued' and netbox_site.status != 'decommissioning':
+        netbox_site.status = 'decommissioning'
+        updated = True
 
     # 2.2. Sync Site Name from API
     api_name = api_site.get('sitename') or api_site.get('sitename2') or api_site.get('sitename1')
@@ -573,6 +576,8 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 if item.get('status') == 'Operational' and matched_site.status != 'active':
                     status_diff = True
                 elif item.get('status') == 'Planned' and matched_site.status != 'planned':
+                    status_diff = True
+                elif item.get('status') == 'Discontinued' and matched_site.status != 'decommissioning':
                     status_diff = True
                     
                 if api_lat:
