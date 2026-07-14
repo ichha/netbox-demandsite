@@ -338,7 +338,7 @@
                             </td>
                             
                             <!-- Province/Region -->
-                            <td class="{% if site.netbox_site and site.api_data.province != site.nb_data.region %}cell-mismatch{% endif %}">
+                            <td class="{% if site.region_diff %}cell-mismatch{% endif %}">
                                 {{ site.nb_data.region }}
                             </td>
                             
@@ -348,7 +348,7 @@
                             </td>
                             
                             <!-- Palika Name -->
-                            <td class="{% if site.netbox_site and site.api_data.palika != site.nb_data.local_level_name %}cell-mismatch{% endif %}">
+                            <td class="{% if site.palika_diff %}cell-mismatch{% endif %}">
                                 {{ site.nb_data.local_level_name }}
                             </td>
                             

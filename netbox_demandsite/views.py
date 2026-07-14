@@ -316,6 +316,8 @@ class DemandsiteListView(LoginRequiredMixin, View):
             
             has_mismatch = False
             needs_sync = False
+            region_diff = False
+            palika_diff = False
             
             if not matched_site:
                 has_mismatch = True
@@ -368,10 +370,35 @@ class DemandsiteListView(LoginRequiredMixin, View):
                     except Exception:
                         pass
                         
+                # Province/Region comparison with suffix normalization
+                # e.g. NetBox region "Bagmati_KTM" matches API "Bagmati" if siteid starts with "KTM"
+                region_diff = False
+                api_province = str(item.get('province', '')).strip()
+                nb_region = str(nb_data['region']).strip()
+                if api_province and nb_region and nb_region != '—':
+                    # Normalize: if nb_region has underscore suffix like "Bagmati_KTM",
+                    # strip the suffix and check if siteid starts with it
+                    nb_region_base = nb_region
+                    if '_' in nb_region:
+                        parts = nb_region.rsplit('_', 1)
+                        suffix = parts[1]
+                        if str(siteid).upper().startswith(suffix.upper()):
+                            nb_region_base = parts[0]
+                    if api_province.lower() != nb_region_base.lower():
+                        region_diff = True
+                        cf_diff = True
+
                 if district_key and item.get('district') and nb_data['district'] != item.get('district'):
                     cf_diff = True
-                if local_level_name_key and item.get('palika') and nb_data['local_level_name'] != item.get('palika'):
-                    cf_diff = True
+                # Local level name: compare first word only
+                # e.g. "Kathmandu Mahanagarpalika" (API) vs "Kathmandu" (NetBox) => match
+                palika_diff = False
+                if local_level_name_key and item.get('palika'):
+                    api_palika_first = str(item.get('palika', '')).strip().split()[0] if item.get('palika') else ''
+                    nb_palika_first = str(nb_data['local_level_name']).strip().split()[0] if nb_data['local_level_name'] else ''
+                    if api_palika_first.lower() != nb_palika_first.lower():
+                        palika_diff = True
+                        cf_diff = True
                 if local_level_type_key and item.get('palika_type'):
                     val = item.get('palika_type')
                     mapping = {
@@ -420,6 +447,8 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 'netbox_site': matched_site,
                 'has_mismatch': has_mismatch,
                 'needs_sync': needs_sync,
+                'region_diff': region_diff,
+                'palika_diff': palika_diff,
             })
             
         # Pagination
