@@ -411,6 +411,34 @@ class DemandsiteListView(LoginRequiredMixin, View):
         # Search query filter from search box
         q = request.GET.get('q', '').strip().upper()
         
+        # Resolve custom field names once globally for the request to avoid N+1 queries inside the loop
+        site_ct = ContentType.objects.get_for_model(Site)
+        try:
+            cf_fields = list(CustomField.objects.filter(object_types=site_ct))
+        except Exception:
+            cf_fields = list(CustomField.objects.filter(content_types=site_ct))
+            
+        district_key = None
+        local_level_name_key = None
+        local_level_type_key = None
+        ward_key = None
+        
+        for cf in cf_fields:
+            cf_name_lower = cf.name.lower()
+            if all(kw in cf_name_lower for kw in ['district']):
+                district_key = cf.name
+            if all(kw in cf_name_lower for kw in ['local', 'level', 'name']) or all(kw in cf_name_lower for kw in ['palika']):
+                if not ('type' in cf_name_lower or ('level' in cf_name_lower and not 'name' in cf_name_lower)):
+                    local_level_name_key = cf.name
+            if all(kw in cf_name_lower for kw in ['local', 'level']) or all(kw in cf_name_lower for kw in ['palika', 'type']):
+                if 'type' in cf_name_lower or ('level' in cf_name_lower and not 'name' in cf_name_lower):
+                    local_level_type_key = cf.name
+            if all(kw in cf_name_lower for kw in ['ward']):
+                ward_key = cf.name
+                
+        if local_level_type_key == local_level_name_key:
+            local_level_type_key = None
+            
         correlated_sites = []
         total_mismatch = 0
         total_matched = 0
@@ -481,13 +509,6 @@ class DemandsiteListView(LoginRequiredMixin, View):
             if not matched_site:
                 has_mismatch = True
             else:
-                district_key = get_cf_key(matched_site, ['district'])
-                local_level_name_key = get_cf_key(matched_site, ['local', 'level', 'name']) or get_cf_key(matched_site, ['palika'])
-                local_level_type_key = get_cf_key(matched_site, ['local', 'level']) or get_cf_key(matched_site, ['palika', 'type'])
-                if local_level_type_key == local_level_name_key:
-                    local_level_type_key = None
-                ward_key = get_cf_key(matched_site, ['ward'])
-                
                 nb_data = {
                     'site_id': resolve_cf_display(cf_name, matched_site.custom_field_data.get(cf_name), choices_map),
                     'name': matched_site.name,
