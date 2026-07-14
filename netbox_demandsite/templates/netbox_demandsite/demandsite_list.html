@@ -56,6 +56,7 @@
         font-size: 10px;
         font-weight: 600;
         padding: 3px 6px;
+        white-space: nowrap;
     }
     .badge-status {
         font-size: 10px;
@@ -215,16 +216,16 @@
                     <tr>
                         <th style="width: 5%;">Source</th>
                         <th style="width: 7%;">SiteID</th>
-                        <th style="width: 14%;">Sitename/Sitename2</th>
-                        <th style="width: 8%;">Province</th>
-                        <th style="width: 10%;">District</th>
-                        <th style="width: 13%;">Local Level / Palika</th>
-                        <th style="width: 13%;">Local Level Name/Palika Type</th>
-                        <th style="width: 5%;">Ward No.</th>
-                        <th style="width: 7%;">Lat</th>
-                        <th style="width: 7%;">Long</th>
-                        <th style="width: 6%;">Status</th>
-                        <th style="width: 7%;">Technology</th>
+                        <th style="width: 11%;">Sitename/Sitename2</th>
+                        <th style="width: 6%;">Province</th>
+                        <th style="width: 8%;">District</th>
+                        <th style="width: 12%;">Local Level / Palika</th>
+                        <th style="width: 10%;">Local Level Name/Palika Type</th>
+                        <th style="width: 4%;">Ward No.</th>
+                        <th style="width: 6%;">Lat</th>
+                        <th style="width: 6%;">Long</th>
+                        <th style="width: 5%;">Status</th>
+                        <th style="width: 15%;">Technology</th>
                         <th class="text-center" style="width: 5%;">Actions</th>
                     </tr>
                 </thead>
@@ -403,9 +404,9 @@
                             <!-- NetBox Devices with specific roles -->
                             <td>
                                 {% if site.nb_data.devices %}
-                                    <div class="d-flex flex-column gap-1" style="max-width: 140px;">
+                                    <div class="d-flex flex-column gap-1" style="min-width: 180px; max-width: 250px;">
                                         {% for dev in site.nb_data.devices %}
-                                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle badge-tech">{{ dev }}</span>
+                                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle badge-tech text-nowrap">{{ dev }}</span>
                                         {% endfor %}
                                     </div>
                                 {% else %}
