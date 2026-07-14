@@ -20,10 +20,24 @@ class DemandsiteListView(LoginRequiredMixin, View):
         Looks for a custom field containing 'site' and 'id' (case-insensitive).
         """
         site_ct = ContentType.objects.get_for_model(Site)
-        cf_fields = CustomField.objects.filter(content_types=site_ct)
-        for cf in cf_fields:
-            if 'site' in cf.name.lower() and 'id' in cf.name.lower():
-                return cf.name
+        
+        # Try 'object_types' first (used in newer NetBox versions)
+        try:
+            cf_fields = CustomField.objects.filter(object_types=site_ct)
+            for cf in cf_fields:
+                if 'site' in cf.name.lower() and 'id' in cf.name.lower():
+                    return cf.name
+        except Exception:
+            pass
+            
+        # Try 'content_types' (used in older NetBox versions)
+        try:
+            cf_fields = CustomField.objects.filter(content_types=site_ct)
+            for cf in cf_fields:
+                if 'site' in cf.name.lower() and 'id' in cf.name.lower():
+                    return cf.name
+        except Exception:
+            pass
         
         # Fallback inspection of keys in existing site instances
         for site in Site.objects.all()[:20]:
