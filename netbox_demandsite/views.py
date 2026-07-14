@@ -362,6 +362,12 @@ class DemandsiteListView(LoginRequiredMixin, View):
     template_name = 'netbox_demandsite/demandsite_list.html'
 
     def _get_api_data(self):
+        from django.core.cache import cache
+        cache_key = "demandsite_api_data"
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data, None
+
         url = "https://demandsite.ntc.net.np/api/share/site-dimension"
         from django.conf import settings
         plugin_config = settings.PLUGINS_CONFIG.get('netbox_demandsite', {})
@@ -374,7 +380,10 @@ class DemandsiteListView(LoginRequiredMixin, View):
         try:
             response = requests.get(url, headers=headers, timeout=15)
             response.raise_for_status()
-            return response.json(), None
+            data = response.json()
+            # Cache for 10 minutes
+            cache.set(cache_key, data, 600)
+            return data, None
         except Exception as e:
             logger.error(f"Error fetching Demandsite data: {e}")
             return [], str(e)
@@ -669,17 +678,19 @@ class DemandsiteListView(LoginRequiredMixin, View):
             messages.error(request, f"Sync failed: {api_error}")
             return redirect('plugins:netbox_demandsite:demandsite_list')
             
-        netbox_sites_map = {}
-        for site in Site.objects.all():
-            if site.custom_field_data:
-                site_id_val = site.custom_field_data.get(cf_name)
-                if site_id_val:
-                    netbox_sites_map[str(site_id_val).strip().upper()] = site
-                    
         if action == 'sync_single':
             siteid = request.POST.get('siteid')
+            if not siteid:
+                messages.error(request, "Failed to sync: Site ID not provided.")
+                return redirect('plugins:netbox_demandsite:demandsite_list')
+                
             api_site = next((x for x in api_sites if str(x.get('siteid')).strip().upper() == str(siteid).strip().upper()), None)
-            netbox_site = netbox_sites_map.get(str(siteid).strip().upper())
+            
+            # Lookup single site directly using JSONField query instead of loading all sites in memory
+            netbox_site = Site.objects.filter(**{f"custom_field_data__{cf_name}": siteid.strip()}).first()
+            if not netbox_site:
+                # Case-insensitive fallback
+                netbox_site = Site.objects.filter(**{f"custom_field_data__{cf_name}__iexact": siteid.strip()}).first()
             
             if api_site:
                 if not netbox_site:
