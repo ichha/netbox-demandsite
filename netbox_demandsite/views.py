@@ -424,8 +424,20 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 'needs_sync': needs_sync,
             })
             
+        # Pagination
+        from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+        paginator = Paginator(correlated_sites, 50)  # 50 items per page
+        page_num = request.GET.get('page', 1)
+        try:
+            paginated_sites = paginator.page(page_num)
+        except PageNotAnInteger:
+            paginated_sites = paginator.page(1)
+        except EmptyPage:
+            paginated_sites = paginator.page(paginator.num_pages)
+
         context = {
-            'correlated_sites': correlated_sites,
+            'correlated_sites': paginated_sites,
+            'paginator': paginator,
             'total_api_sites': total_api_sites,
             'total_netbox': total_netbox,
             'total_mismatch': total_mismatch,

@@ -5,39 +5,61 @@
 
 {% block content %}
 
-<!-- Custom Styles matching mockup and premium Bootstrap -->
+<!-- Custom Styles for Premium UI Alignment -->
 <style>
-    .excel-table {
-        border-collapse: collapse;
+    .premium-table {
+        border-collapse: separate;
+        border-spacing: 0;
         width: 100%;
         font-size: 13px;
+        background-color: #ffffff;
     }
-    .excel-table th {
-        background-color: #b4c6e7; /* Blue header from mockup */
-        color: #000000;
-        font-weight: bold;
-        text-align: left;
-        padding: 8px;
-        border: 1px solid #8faadc;
+    .premium-table th {
+        background-color: #f1f5f9;
+        color: #334155;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 11px;
+        letter-spacing: 0.5px;
+        padding: 10px 12px;
+        border-bottom: 2px solid #e2e8f0;
+        border-top: 1px solid #e2e8f0;
     }
-    .excel-table td {
-        padding: 6px 8px;
-        border: 1px solid #d9d9d9;
+    .premium-table td {
+        padding: 8px 12px;
+        border-bottom: 1px solid #f1f5f9;
+        color: #334155;
     }
-    /* Alternating site pairs */
+    /* Alternating site pairs with elegant soft tints */
     .row-pair-even td {
         background-color: #ffffff;
     }
     .row-pair-odd td {
-        background-color: #fce4d6; /* Light orange color from mockup */
+        background-color: #fffaf7; /* Elegant, premium soft orange tint */
     }
-    .excel-source-label {
-        font-weight: bold;
-        color: #595959;
+    /* Highlight cell for mismatch */
+    .cell-mismatch {
+        color: #e11d48 !important; /* Rose-600 */
+        font-weight: 600;
+        background-color: #fff1f2 !important; /* Rose-50 */
     }
-    .excel-mismatch-cell {
-        color: #c00000;
-        font-weight: bold;
+    .badge-site-id {
+        font-family: var(--font-monospace, monospace);
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        font-size: 11px;
+    }
+    .badge-tech {
+        font-size: 10px;
+        font-weight: 600;
+        padding: 3px 6px;
+    }
+    .badge-status {
+        font-size: 10px;
+        font-weight: 700;
+        padding: 4px 8px;
+        border-radius: 4px;
+        display: inline-block;
     }
 </style>
 
@@ -65,25 +87,25 @@
 <!-- Premium Stat Cards from First Version -->
 <div class="row mb-4">
     <div class="col-md-4">
-        <div class="card bg-light text-center border-0 shadow-sm h-100 py-2">
+        <div class="card border-0 shadow-sm h-100 py-2" style="background-color: #f8fafc; border-left: 4px solid #64748b !important;">
             <div class="card-body">
-                <h6 class="text-uppercase text-muted mb-1">Total API Sites</h6>
+                <h6 class="text-uppercase text-muted mb-1 fw-bold" style="font-size: 11px;">Total API Sites</h6>
                 <h2 class="display-6 fw-bold mb-0 text-dark">{{ total_api_sites }}</h2>
             </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card bg-light text-center border-0 shadow-sm h-100 py-2">
+        <div class="card border-0 shadow-sm h-100 py-2" style="background-color: #f8fafc; border-left: 4px solid #10b981 !important;">
             <div class="card-body">
-                <h6 class="text-uppercase text-muted mb-1">Total Netbox</h6>
+                <h6 class="text-uppercase text-muted mb-1 fw-bold" style="font-size: 11px;">Total Netbox</h6>
                 <h2 class="display-6 fw-bold mb-0 text-success">{{ total_netbox }}</h2>
             </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card bg-light text-center border-0 shadow-sm h-100 py-2">
+        <div class="card border-0 shadow-sm h-100 py-2" style="background-color: #f8fafc; border-left: 4px solid #ef4444 !important;">
             <div class="card-body">
-                <h6 class="text-uppercase text-muted mb-1">Mismatch</h6>
+                <h6 class="text-uppercase text-muted mb-1 fw-bold" style="font-size: 11px;">Mismatch</h6>
                 <h2 class="display-6 fw-bold mb-0 text-danger">{{ total_mismatch }}</h2>
             </div>
         </div>
@@ -94,20 +116,20 @@
 <div class="card shadow-sm border-0">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="excel-table">
+            <table class="premium-table">
                 <thead>
                     <tr>
-                        <th style="width: 5%;"></th>
+                        <th style="width: 5%;">Source</th>
                         <th style="width: 7%;">SiteID</th>
-                        <th style="width: 12%;">Sitename/Sitename2</th>
+                        <th style="width: 14%;">Sitename/Sitename2</th>
                         <th style="width: 8%;">Province</th>
                         <th style="width: 10%;">District</th>
                         <th style="width: 13%;">Local Level / Palika</th>
                         <th style="width: 13%;">Local Level Name/Palika Type</th>
-                        <th style="width: 6%;">Ward No.</th>
+                        <th style="width: 5%;">Ward No.</th>
                         <th style="width: 7%;">Lat</th>
                         <th style="width: 7%;">Long</th>
-                        <th style="width: 7%;">Status</th>
+                        <th style="width: 6%;">Status</th>
                         <th style="width: 10%;">Technology</th>
                         <th class="text-center" style="width: 5%;">Actions</th>
                     </tr>
@@ -120,26 +142,59 @@
                         {% else %}
                             <tr class="row-pair-odd">
                         {% endif %}
-                            <td class="excel-source-label">API Data</td>
-                            <td class="font-monospace fw-bold">{{ site.api_data.siteid }}</td>
-                            <td>{{ site.api_data.sitename }}</td>
+                            <!-- API Row Source -->
+                            <td><span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle py-1">API</span></td>
+                            
+                            <!-- Site ID -->
+                            <td class="font-monospace fw-bold">
+                                <span class="badge bg-dark text-white badge-site-id">{{ site.api_data.siteid }}</span>
+                            </td>
+                            
+                            <!-- Name -->
+                            <td class="fw-semibold">{{ site.api_data.sitename }}</td>
+                            
+                            <!-- Province -->
                             <td>{{ site.api_data.province }}</td>
+                            
+                            <!-- District -->
                             <td>{{ site.api_data.district }}</td>
+                            
+                            <!-- Palika -->
                             <td>{{ site.api_data.palika }}</td>
+                            
+                            <!-- Palika Type -->
                             <td>{{ site.api_data.palika_type }}</td>
+                            
+                            <!-- Ward -->
                             <td>{{ site.api_data.wardno }}</td>
-                            <td class="font-monospace">{{ site.api_data.latitude }}</td>
-                            <td class="font-monospace">{{ site.api_data.longitude }}</td>
+                            
+                            <!-- Lat / Long -->
+                            <td class="font-monospace text-muted">{{ site.api_data.latitude }}</td>
+                            <td class="font-monospace text-muted">{{ site.api_data.longitude }}</td>
+                            
+                            <!-- Status -->
                             <td>
                                 {% if site.api_data.status == 'Operational' %}
-                                    <span class="text-success fw-bold">Operational</span>
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle badge-status">Operational</span>
                                 {% else %}
-                                    <span class="text-info fw-bold">{{ site.api_data.status }}</span>
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle badge-status">{{ site.api_data.status }}</span>
                                 {% endif %}
                             </td>
-                            <td>{{ site.api_data.technologies|default:"—" }}</td>
                             
-                            <!-- Action column spanning 2 rows -->
+                            <!-- Technologies list -->
+                            <td>
+                                {% if site.api_data.technologies %}
+                                    {% for tech in site.api_data.technologies.split|join:","|make_list %}
+                                        <!-- Clean up string formatting for technology list -->
+                                    {% endfor %}
+                                    <!-- Comma-separated list rendered cleanly -->
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle badge-tech">{{ site.api_data.technologies }}</span>
+                                {% else %}
+                                    <span class="text-muted small">—</span>
+                                {% endif %}
+                            </td>
+                            
+                            <!-- Action column spanning both rows -->
                             <td rowspan="2" class="text-center bg-white border-start border-end" style="vertical-align: middle;">
                                 {% if site.netbox_site %}
                                     {% if site.needs_sync %}
@@ -147,15 +202,15 @@
                                             {% csrf_token %}
                                             <input type="hidden" name="action" value="sync_single">
                                             <input type="hidden" name="siteid" value="{{ site.api_data.siteid }}">
-                                            <button type="submit" class="btn btn-sm btn-warning" title="Sync fields to NetBox">
-                                                <i class="mdi mdi-sync"></i> Sync
+                                            <button type="submit" class="btn btn-sm btn-warning d-flex align-items-center justify-content-center mx-auto" title="Sync fields to NetBox">
+                                                <i class="mdi mdi-sync me-1"></i> Sync
                                             </button>
                                         </form>
                                     {% else %}
                                         <span class="text-success fw-bold" title="Synchronized"><i class="mdi mdi-check-circle fs-5"></i></span>
                                     {% endif %}
                                 {% else %}
-                                    <span class="badge bg-danger" title="Create Site in NetBox first with Site ID custom field">N/A</span>
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle py-1" title="Create Site in NetBox first with Site ID custom field">N/A</span>
                                 {% endif %}
                             </td>
                         </tr>
@@ -166,64 +221,80 @@
                         {% else %}
                             <tr class="row-pair-odd">
                         {% endif %}
-                            <td class="excel-source-label">Netbox</td>
-                            <!-- Site ID -->
-                            <td class="font-monospace {% if not site.netbox_site %}excel-mismatch-cell{% endif %}">
-                                {{ site.nb_data.site_id }}
+                            <!-- NetBox Source -->
+                            <td><span class="badge bg-success-subtle text-success border border-success-subtle py-1">Netbox</span></td>
+                            
+                            <!-- Site ID (Highlight if missing or mismatched) -->
+                            <td class="font-monospace {% if not site.netbox_site %}cell-mismatch{% endif %}">
+                                <span class="badge bg-secondary text-white badge-site-id">{{ site.nb_data.site_id }}</span>
                             </td>
+                            
                             <!-- Name -->
-                            <td class="{% if site.netbox_site and site.api_data.sitename != site.nb_data.name %}excel-mismatch-cell{% endif %}">
+                            <td class="{% if site.netbox_site and site.api_data.sitename != site.nb_data.name %}cell-mismatch{% endif %}">
                                 {% if site.netbox_site %}
-                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="fw-bold">
-                                        {{ site.nb_data.name }}
+                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="fw-bold text-decoration-none">
+                                        {{ site.nb_data.name }} <i class="mdi mdi-open-in-new small text-muted"></i>
                                     </a>
                                 {% else %}
                                     —
                                 {% endif %}
                             </td>
-                            <!-- Region -->
-                            <td class="{% if site.netbox_site and site.api_data.province != site.nb_data.region %}excel-mismatch-cell{% endif %}">
+                            
+                            <!-- Province/Region -->
+                            <td class="{% if site.netbox_site and site.api_data.province != site.nb_data.region %}cell-mismatch{% endif %}">
                                 {{ site.nb_data.region }}
                             </td>
+                            
                             <!-- District -->
-                            <td class="{% if site.netbox_site and site.api_data.district != site.nb_data.district %}excel-mismatch-cell{% endif %}">
+                            <td class="{% if site.netbox_site and site.api_data.district != site.nb_data.district %}cell-mismatch{% endif %}">
                                 {{ site.nb_data.district }}
                             </td>
-                            <!-- Local Level / Palika Name -->
-                            <td class="{% if site.netbox_site and site.api_data.palika != site.nb_data.local_level_name %}excel-mismatch-cell{% endif %}">
+                            
+                            <!-- Palika Name -->
+                            <td class="{% if site.netbox_site and site.api_data.palika != site.nb_data.local_level_name %}cell-mismatch{% endif %}">
                                 {{ site.nb_data.local_level_name }}
                             </td>
+                            
                             <!-- Local Level Type -->
                             {% with api_palika_type=site.api_data.palika_type %}
-                            <td class="{% if site.netbox_site and api_palika_type != site.nb_data.local_level and api_palika_type|slugify != site.nb_data.local_level|slugify %}excel-mismatch-cell{% endif %}">
+                            <td class="{% if site.netbox_site and api_palika_type != site.nb_data.local_level and api_palika_type|slugify != site.nb_data.local_level|slugify %}cell-mismatch{% endif %}">
                                 {{ site.nb_data.local_level }}
                             </td>
                             {% endwith %}
+                            
                             <!-- Ward -->
-                            <td class="{% if site.netbox_site and site.api_data.wardno|stringformat:"s" != site.nb_data.ward|stringformat:"s" %}excel-mismatch-cell{% endif %}">
+                            <td class="{% if site.netbox_site and site.api_data.wardno|stringformat:"s" != site.nb_data.ward|stringformat:"s" %}cell-mismatch{% endif %}">
                                 {{ site.nb_data.ward }}
                             </td>
+                            
                             <!-- Latitude -->
-                            <td class="font-monospace {% if site.netbox_site and site.api_data.latitude|stringformat:".5f" != site.nb_data.latitude|stringformat:".5f" %}excel-mismatch-cell{% endif %}">
+                            <td class="font-monospace {% if site.netbox_site and site.api_data.latitude|stringformat:".5f" != site.nb_data.latitude|stringformat:".5f" %}cell-mismatch{% endif %}">
                                 {{ site.nb_data.latitude }}
                             </td>
+                            
                             <!-- Longitude -->
-                            <td class="font-monospace {% if site.netbox_site and site.api_data.longitude|stringformat:".5f" != site.nb_data.longitude|stringformat:".5f" %}excel-mismatch-cell{% endif %}">
+                            <td class="font-monospace {% if site.netbox_site and site.api_data.longitude|stringformat:".5f" != site.nb_data.longitude|stringformat:".5f" %}cell-mismatch{% endif %}">
                                 {{ site.nb_data.longitude }}
                             </td>
+                            
                             <!-- Status -->
-                            <td class="{% if site.netbox_site and site.api_data.status == 'Operational' and site.nb_data.status != 'Active' and site.nb_data.status != 'active' or site.api_data.status == 'Planned' and site.nb_data.status != 'Planned' and site.nb_data.status != 'planned' %}excel-mismatch-cell{% endif %}">
+                            <td class="{% if site.netbox_site and site.api_data.status == 'Operational' and site.nb_data.status != 'Active' and site.nb_data.status != 'active' or site.api_data.status == 'Planned' and site.nb_data.status != 'Planned' and site.nb_data.status != 'planned' %}cell-mismatch{% endif %}">
                                 {% if site.nb_data.status == 'Active' or site.nb_data.status == 'active' %}
-                                    <span class="text-success fw-bold">Active</span>
+                                    <span class="badge bg-success badge-status">Active</span>
                                 {% elif site.nb_data.status == 'Planned' or site.nb_data.status == 'planned' %}
-                                    <span class="text-info fw-bold">Planned</span>
+                                    <span class="badge bg-info text-dark badge-status">Planned</span>
                                 {% else %}
-                                    {{ site.nb_data.status }}
+                                    <span class="badge bg-secondary badge-status">{{ site.nb_data.status }}</span>
                                 {% endif %}
                             </td>
-                            <!-- Devices -->
+                            
+                            <!-- NetBox Devices with specific roles -->
                             <td>
-                                {{ site.nb_data.devices }}
+                                {% if site.nb_data.devices and site.nb_data.devices != '—' %}
+                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle badge-tech">{{ site.nb_data.devices }}</span>
+                                {% else %}
+                                    <span class="text-muted small">—</span>
+                                {% endif %}
                             </td>
                         </tr>
                     {% empty %}
@@ -237,6 +308,53 @@
                 </tbody>
             </table>
         </div>
+
+        <!-- Pagination Controls -->
+        {% if paginator.num_pages > 1 %}
+        <div class="d-flex justify-content-between align-items-center px-4 py-3 bg-light border-top flex-wrap gap-2">
+            <span class="text-muted small fw-semibold">
+                Showing {{ correlated_sites.start_index }}–{{ correlated_sites.end_index }} of {{ total_api_sites }} sites
+            </span>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    {% if correlated_sites.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if q %}&q={{ q }}{% endif %}">&laquo; First</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ correlated_sites.previous_page_number }}{% if q %}&q={{ q }}{% endif %}">Previous</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">&laquo; First</span></li>
+                        <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                    {% endif %}
+
+                    {% for num in paginator.page_range %}
+                        {% if num == correlated_sites.number %}
+                            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                        {% elif num > correlated_sites.number|add:-3 and num < correlated_sites.number|add:3 %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}{% if q %}&q={{ q }}{% endif %}">{{ num }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if correlated_sites.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ correlated_sites.next_page_number }}{% if q %}&q={{ q }}{% endif %}">Next</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ paginator.num_pages }}{% if q %}&q={{ q }}{% endif %}">Last &raquo;</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">Next</span></li>
+                        <li class="page-item disabled"><span class="page-link">Last &raquo;</span></li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+
     </div>
 </div>
 {% endblock %}
