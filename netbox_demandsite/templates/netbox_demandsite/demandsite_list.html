@@ -393,6 +393,8 @@
                                         <span class="badge bg-success badge-status">Active</span>
                                     {% elif site.nb_data.status == 'Planned' or site.nb_data.status == 'planned' %}
                                         <span class="badge bg-info text-dark badge-status">Planned</span>
+                                    {% elif site.nb_data.status == 'Decommissioning' or site.nb_data.status == 'decommissioning' %}
+                                        <span class="badge badge-status" style="background-color:#ea580c; color:#fff;">Decommissioning</span>
                                     {% else %}
                                         <span class="badge bg-secondary badge-status">{{ site.nb_data.status }}</span>
                                     {% endif %}
