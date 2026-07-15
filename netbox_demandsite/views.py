@@ -726,7 +726,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
         # Bulk pre-fetch devices ONLY for the 50 sites on this page
         page_site_ids = [item['netbox_site'].id for item in paginated_sites if item['netbox_site']]
         if page_site_ids:
-            devices = Device.objects.select_related('role', 'device_role').filter(site_id__in=page_site_ids)
+            devices = Device.objects.select_related('role').filter(site_id__in=page_site_ids)
             
             from collections import defaultdict
             site_devices_map = defaultdict(list)
