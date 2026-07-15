@@ -404,11 +404,21 @@
                             </td>
                             
                             <!-- NetBox Devices with specific roles -->
-                            <td>
+                            <td class="{% if site.tech_diff %}cell-mismatch{% endif %}">
                                 {% if site.nb_data.devices %}
-                                    <div class="d-flex flex-column gap-1" style="min-width: 180px; max-width: 250px;">
+                                    <div class="d-flex flex-column gap-1" style="min-width: 180px; max-width: 260px;">
                                         {% for dev in site.nb_data.devices %}
-                                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle badge-tech text-nowrap">{{ dev }}</span>
+                                            {% if dev.status == 'active' %}
+                                                <span class="badge badge-tech text-nowrap" style="background-color:#dcfce7;color:#166534;border:1px solid #86efac;">
+                                                    <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#16a34a;margin-right:4px;vertical-align:middle;"></span>{{ dev.name }}
+                                                </span>
+                                            {% elif dev.status == 'offline' %}
+                                                <span class="badge badge-tech text-nowrap" style="background-color:#fee2e2;color:#991b1b;border:1px solid #fca5a5;">
+                                                    <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#dc2626;margin-right:4px;vertical-align:middle;"></span>{{ dev.name }}
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle badge-tech text-nowrap">{{ dev.name }}</span>
+                                            {% endif %}
                                         {% endfor %}
                                     </div>
                                 {% else %}

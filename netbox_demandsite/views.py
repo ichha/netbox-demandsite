@@ -189,49 +189,63 @@ def create_netbox_device(name, site, role, dtype):
             status='active'
         )
 
-def add_devices_for_site(netbox_site, api_site):
+# Maps device name suffix → (tech_flag_attr, role_name, device_type_model, role_color)
+DEVICE_TECH_MAP = [
+    ('_G', '2g', 'WSD/BTS/2G', 'GSM 2G',  '4caf50'),
+    ('_U', '3g', 'WSD/BTS/3G', 'UMTS 3G', '2196f3'),
+    ('_L', '4g', 'WSD/BTS/4G', 'LTE 4G',  'ff9800'),
+]
+
+def parse_api_technologies(api_site):
+    """Returns a dict with keys '2g','3g','4g' set True if that tech is in API."""
     technologies = api_site.get('technologies')
+    result = {'2g': False, '3g': False, '4g': False}
     if not technologies:
-        return
-        
-    mfg = get_or_create_manufacturer("Huawei Technologies Co. Ltd.")
-    siteid = api_site.get('siteid')
-    sitename = api_site.get('sitename') or netbox_site.name
-    
+        return result
     tech_list = technologies if isinstance(technologies, list) else str(technologies).split(',')
-    
-    has_2g = False
-    has_3g = False
-    has_4g = False
     for tech in tech_list:
-        tech_upper = str(tech).upper()
-        if '2G' in tech_upper:
-            has_2g = True
-        if '3G' in tech_upper:
-            has_3g = True
-        if '4G' in tech_upper:
-            has_4g = True
-            
-    if has_2g:
-        dev_name = f"{siteid}_{sitename}_G"
-        role = get_or_create_device_role("WSD/BTS/2G", color="4caf50")
-        dtype = get_or_create_device_type("GSM 2G", mfg)
-        if not Device.objects.filter(name=dev_name, site=netbox_site).exists():
-            create_netbox_device(dev_name, netbox_site, role, dtype)
-            
-    if has_3g:
-        dev_name = f"{siteid}_{sitename}_U"
-        role = get_or_create_device_role("WSD/BTS/3G", color="4caf50")
-        dtype = get_or_create_device_type("UMTS 3G", mfg)
-        if not Device.objects.filter(name=dev_name, site=netbox_site).exists():
-            create_netbox_device(dev_name, netbox_site, role, dtype)
-            
-    if has_4g:
-        dev_name = f"{siteid}_{sitename}_L"
-        role = get_or_create_device_role("WSD/BTS/4G", color="4caf50")
-        dtype = get_or_create_device_type("LTE 4G", mfg)
-        if not Device.objects.filter(name=dev_name, site=netbox_site).exists():
-            create_netbox_device(dev_name, netbox_site, role, dtype)
+        t = str(tech).strip().upper()
+        if '2G' in t:
+            result['2g'] = True
+        if '3G' in t:
+            result['3g'] = True
+        if '4G' in t:
+            result['4g'] = True
+    return result
+
+def sync_devices_for_site(netbox_site, api_site):
+    """
+    Synchronises BTS devices for a NetBox site based on API technology flags.
+    - Tech present in API  → device must exist and be Active.
+    - Tech absent from API → device must exist and be Offline.
+    Creates missing devices when tech is present.
+    """
+    techs = parse_api_technologies(api_site)
+    siteid  = api_site.get('siteid') or ''
+    sitename = api_site.get('sitename') or netbox_site.name or ''
+    mfg = get_or_create_manufacturer("Huawei Technologies Co. Ltd.")
+
+    for suffix, tech_key, role_name, model_name, role_color in DEVICE_TECH_MAP:
+        dev_name = f"{siteid}_{sitename}{suffix}"
+        tech_present = techs[tech_key]
+
+        existing = Device.objects.filter(name=dev_name, site=netbox_site).first()
+
+        if tech_present:
+            if existing is None:
+                # Create new active device
+                role  = get_or_create_device_role(role_name, color=role_color)
+                dtype = get_or_create_device_type(model_name, mfg)
+                create_netbox_device(dev_name, netbox_site, role, dtype)
+            elif existing.status != 'active':
+                # Re-activate device
+                existing.status = 'active'
+                existing.save()
+        else:
+            if existing is not None and existing.status != 'offline':
+                # Tech gone from API → mark offline
+                existing.status = 'offline'
+                existing.save()
 
 def sync_one_site(netbox_site, api_site, cf_name):
     """
@@ -377,13 +391,13 @@ def sync_one_site(netbox_site, api_site, cf_name):
         except Exception:
             pass
             
-    # Always run device creation/synchronization
+    # Always run device synchronization (create / activate / offline)
     devices_updated = False
     try:
-        add_devices_for_site(netbox_site, api_site)
+        sync_devices_for_site(netbox_site, api_site)
         devices_updated = True
     except Exception as e:
-        logger.error(f"Error adding devices for site {netbox_site.name}: {e}")
+        logger.error(f"Error syncing devices for site {netbox_site.name}: {e}")
 
     if updated:
         netbox_site.save()
@@ -539,6 +553,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
             ward_diff = False
             status_diff = False
             name_diff = False
+            tech_diff = False
             
             if not matched_site:
                 has_mismatch = True
@@ -647,6 +662,11 @@ class DemandsiteListView(LoginRequiredMixin, View):
                         ward_diff = True
                         cf_diff = True
                         
+                # Technology / device status mismatch check
+                # Requires devices to be pre-fetched; we do a lightweight check here
+                # using the site's pre-fetched devices (populated after pagination).
+                # Full device status diff is detected below after device prefetch.
+
                 if lat_diff or lon_diff or status_diff or cf_diff:
                     has_mismatch = True
                     needs_sync = True
@@ -688,6 +708,8 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 'ward_diff': ward_diff,
                 'status_diff': status_diff,
                 'name_diff': name_diff,
+                'tech_diff': False,  # resolved after device prefetch below
+                '_api_techs': parse_api_technologies(item),
             })
             
         # Pagination
@@ -704,23 +726,60 @@ class DemandsiteListView(LoginRequiredMixin, View):
         # Bulk pre-fetch devices ONLY for the 50 sites on this page
         page_site_ids = [item['netbox_site'].id for item in paginated_sites if item['netbox_site']]
         if page_site_ids:
-            devices = Device.objects.filter(site_id__in=page_site_ids)
+            devices = Device.objects.select_related('role', 'device_role').filter(site_id__in=page_site_ids)
             
             from collections import defaultdict
             site_devices_map = defaultdict(list)
             for d in devices:
                 site_devices_map[d.site_id].append(d)
                 
+            # suffix → tech key for diff detection
+            SUFFIX_TECH = {'_G': '2g', '_U': '3g', '_L': '4g'}
+            BTS_ROLES = {'WSD/BTS/2G', 'WSD/BTS/3G', 'WSD/BTS/4G'}
+
             for item in paginated_sites:
                 nb_site = item['netbox_site']
+                api_techs = item.get('_api_techs', {})
+                tech_diff = False
+
                 if nb_site and nb_site.id in site_devices_map:
-                    dev_names = []
+                    dev_entries = []  # list of dicts: {name, status}
+                    # Build name→device lookup for this site
+                    name_to_dev = {}
                     for d in site_devices_map[nb_site.id]:
                         role_obj = getattr(d, 'role', None) or getattr(d, 'device_role', None)
-                        if role_obj and str(role_obj.name).strip() in ['WSD/BTS/2G', 'WSD/BTS/3G', 'WSD/BTS/4G']:
-                            dev_names.append(d.name)
-                    if dev_names:
-                        item['nb_data']['devices'] = dev_names
+                        if role_obj and str(role_obj.name).strip() in BTS_ROLES:
+                            name_to_dev[d.name] = d
+                            dev_entries.append({'name': d.name, 'status': d.status})
+
+                    item['nb_data']['devices'] = dev_entries
+
+                    # Check tech_diff: for each suffix, expected status vs actual
+                    api_siteid   = item['api_data'].get('siteid', '')
+                    api_sitename = item['api_data'].get('sitename', '')
+                    for suffix, tech_key in SUFFIX_TECH.items():
+                        expected_name   = f"{api_siteid}_{api_sitename}{suffix}"
+                        tech_present    = api_techs.get(tech_key, False)
+                        existing_device = name_to_dev.get(expected_name)
+
+                        if tech_present:
+                            # Device should exist and be active
+                            if existing_device is None or existing_device.status != 'active':
+                                tech_diff = True
+                        else:
+                            # Device should not exist or should be offline
+                            if existing_device is not None and existing_device.status != 'offline':
+                                tech_diff = True
+                else:
+                    # No devices in NetBox at all — diff if API has any tech
+                    if any(api_techs.values()):
+                        tech_diff = True
+                    item['nb_data']['devices'] = []
+
+                item['tech_diff'] = tech_diff
+                if tech_diff:
+                    item['has_mismatch'] = True
+                    item['needs_sync'] = True
 
         context = {
             'correlated_sites': paginated_sites,
