@@ -197,20 +197,39 @@ DEVICE_TECH_MAP = [
 ]
 
 def parse_api_technologies(api_site):
-    """Returns a dict with keys '2g','3g','4g' set True if that tech is in API."""
-    technologies = api_site.get('technologies')
+    """Returns a dict with keys '2g','3g','4g' set True if that tech is in API.
+    Reads from 'operational_technologies' (list of dicts) or fallback 'technology' string.
+    """
     result = {'2g': False, '3g': False, '4g': False}
-    if not technologies:
-        return result
-    tech_list = technologies if isinstance(technologies, list) else str(technologies).split(',')
-    for tech in tech_list:
-        t = str(tech).strip().upper()
+
+    # Primary: operational_technologies is a list of {'technology': 'GSM 2G', ...}
+    op_techs = api_site.get('operational_technologies', [])
+    tech_strings = []
+    if op_techs and isinstance(op_techs, list):
+        for entry in op_techs:
+            if isinstance(entry, dict):
+                t = entry.get('technology', '')
+            else:
+                t = str(entry)
+            tech_strings.append(t.upper())
+    
+    # Fallback: plain 'technology' string or 'technologies' list
+    if not tech_strings:
+        raw = api_site.get('technologies') or api_site.get('technology')
+        if raw:
+            if isinstance(raw, list):
+                tech_strings = [str(t).upper() for t in raw]
+            else:
+                tech_strings = [str(raw).upper()]
+
+    for t in tech_strings:
         if '2G' in t:
             result['2g'] = True
         if '3G' in t:
             result['3g'] = True
         if '4G' in t:
             result['4g'] = True
+
     return result
 
 def sync_devices_for_site(netbox_site, api_site):
