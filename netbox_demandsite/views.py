@@ -276,6 +276,34 @@ def parse_api_technologies(api_site):
 
     return result
 
+def find_best_site_match(site_list, api_name):
+    if not site_list:
+        return None
+    if len(site_list) == 1:
+        return site_list[0]
+        
+    api_name_upper = str(api_name).upper().strip()
+    
+    # 1. Exact name match (case-insensitive)
+    for s in site_list:
+        if s.name.upper().strip() == api_name_upper:
+            return s
+            
+    # 2. Name starts with API name or API name starts with site name
+    for s in site_list:
+        s_name_upper = s.name.upper().strip()
+        if s_name_upper.startswith(api_name_upper) or api_name_upper.startswith(s_name_upper):
+            return s
+            
+    # 3. Name contains API name or API name contains site name
+    for s in site_list:
+        s_name_upper = s.name.upper().strip()
+        if api_name_upper in s_name_upper or s_name_upper in api_name_upper:
+            return s
+            
+    # 4. Fallback to first one
+    return site_list[0]
+
 def sync_devices_for_site(netbox_site, api_site):
     """
     Synchronises BTS devices for a NetBox site based on API technology flags.
@@ -348,6 +376,7 @@ def sync_one_site(netbox_site, api_site, cf_name):
     """
     updated = False
     logs = []
+    siteid = api_site.get('siteid') or ''
     
     # 1. Sync Coordinates (Latitude / Longitude)
     api_lat = api_site.get('latitude')
@@ -390,13 +419,22 @@ def sync_one_site(netbox_site, api_site, cf_name):
     api_name = api_site.get('sitename') or api_site.get('sitename2') or api_site.get('sitename1')
     if api_name and api_name != '—':
         if netbox_site.name != api_name:
-            logs.append(f"Changing site name from {netbox_site.name} to {api_name}")
-            netbox_site.name = api_name
-            updated = True
+            target_name = api_name
+            # Check if name is already taken by a DIFFERENT site
+            if Site.objects.filter(name=target_name).exclude(id=netbox_site.id).exists():
+                target_name = f"{api_name} ({siteid})"[:100]
+            counter = 1
+            while Site.objects.filter(name=target_name).exclude(id=netbox_site.id).exists():
+                target_name = f"{api_name} ({siteid}) {counter}"[:100]
+                counter += 1
+                
+            if netbox_site.name != target_name:
+                logs.append(f"Changing site name from {netbox_site.name} to {target_name}")
+                netbox_site.name = target_name
+                updated = True
 
     # 2.5. Sync Region/Province
     api_province = clean_province_name(api_site.get('province'))
-    siteid = api_site.get('siteid')
     if api_province:
         region_obj = None
         is_ktm_bagmati = str(siteid).upper().startswith("KTM") and str(api_province).strip().lower() == "bagmati"
@@ -540,19 +578,10 @@ class DemandsiteListView(LoginRequiredMixin, View):
             messages.error(request, f"Failed to fetch site data from external server: {api_error}")
             
         cf_name = get_site_id_cf_name()
-        
-        # Temporary Diagnostic
-        diag_sites = Site.objects.filter(**{f"custom_field_data__{cf_name}": "WDR302"}) | Site.objects.filter(name__icontains="POKHARANT") | Site.objects.filter(name__icontains="RANIPAUWA")
-        diag_list = []
-        for ds in diag_sites:
-            cf_val = ds.custom_field_data.get(cf_name) if ds.custom_field_data else 'None'
-            diag_list.append(f"ID={ds.id}, Name='{ds.name}', CF_site_id='{cf_val}', Status='{ds.status}'")
-        messages.info(request, f"DIAGNOSTIC: {'; '.join(diag_list)}")
         choices_map = build_cf_choices_map()
         
         # Build mapping of NetBox sites by Site ID custom field (case-insensitive)
-        # We check "if key not in netbox_sites_map" to align with POST handler's `.first()` call
-        # (which returns the alphabetically first site since Site model Meta ordering is ['name']).
+        # Groups multiple sites under the same key if duplicates exist
         netbox_sites_map = {}
         for site in Site.objects.select_related('region'):
             if site.custom_field_data:
@@ -560,7 +589,8 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 if site_id_val:
                     key = str(site_id_val).strip().upper()
                     if key not in netbox_sites_map:
-                        netbox_sites_map[key] = site
+                        netbox_sites_map[key] = []
+                    netbox_sites_map[key].append(site)
                     
         # Calculate stats
         total_api_sites = len(api_sites)
@@ -606,7 +636,10 @@ class DemandsiteListView(LoginRequiredMixin, View):
         
         for item in api_sites:
             siteid = item.get('siteid', '')
-            matched_site = netbox_sites_map.get(str(siteid).strip().upper())
+            api_name = item.get('sitename2') or item.get('sitename1') or item.get('sitename') or ''
+            
+            site_list = netbox_sites_map.get(str(siteid).strip().upper(), [])
+            matched_site = find_best_site_match(site_list, api_name)
             
             # Format API technologies
             tech_list = []
@@ -942,11 +975,14 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 
             api_site = next((x for x in api_sites if str(x.get('siteid')).strip().upper() == str(siteid).strip().upper()), None)
             
-            # Lookup single site directly using JSONField query instead of loading all sites in memory
-            netbox_site = Site.objects.filter(**{f"custom_field_data__{cf_name}": siteid.strip()}).first()
-            if not netbox_site:
+            # Lookup sites directly using JSONField query
+            netbox_sites = list(Site.objects.filter(**{f"custom_field_data__{cf_name}": siteid.strip()}))
+            if not netbox_sites:
                 # Case-insensitive fallback
-                netbox_site = Site.objects.filter(**{f"custom_field_data__{cf_name}__iexact": siteid.strip()}).first()
+                netbox_sites = list(Site.objects.filter(**{f"custom_field_data__{cf_name}__iexact": siteid.strip()}))
+            
+            api_name = api_site.get('sitename') or api_site.get('sitename2') or api_site.get('sitename1') or ''
+            netbox_site = find_best_site_match(netbox_sites, api_name)
             
             if api_site:
                 try:
@@ -978,11 +1014,10 @@ class DemandsiteListView(LoginRequiredMixin, View):
                         messages.success(request, f"Successfully created and synchronized site {siteid} ({name}) in NetBox.")
                     else:
                         updated, logs_list = sync_one_site(netbox_site, api_site, cf_name)
-                        logs_str = " | ".join(logs_list)
                         if updated or any("Device" in log or "Creating" in log or "changed" in log or "created" in log for log in logs_list):
-                            messages.success(request, f"Successfully synchronized all fields for {siteid} ({netbox_site.name}) to NetBox. Details: {logs_str}")
+                            messages.success(request, f"Successfully synchronized all fields for {siteid} ({netbox_site.name}) to NetBox.")
                         else:
-                            messages.info(request, f"Site {siteid} ({netbox_site.name}) is already fully synchronized. Details: {logs_str}")
+                            messages.success(request, f"Successfully synchronized all fields for {siteid} ({netbox_site.name}) to NetBox.")
                 except Exception as e:
                     import traceback
                     logger.error(f"Sync error for site {siteid}: {traceback.format_exc()}")
