@@ -469,18 +469,12 @@ def sync_one_site(netbox_site, api_site, cf_name):
         except Exception:
             pass
             
-    # Always run device synchronization (create / activate / offline)
-    devices_updated = False
-    try:
-        sync_devices_for_site(netbox_site, api_site)
-        devices_updated = True
-    except Exception as e:
-        logger.error(f"Error syncing devices for site {netbox_site.name}: {e}")
-
     if updated:
         netbox_site.save()
-        return True
-    return devices_updated
+        
+    # Always run device synchronization (create / activate / offline)
+    sync_devices_for_site(netbox_site, api_site)
+    return True
 
 
 class DemandsiteListView(LoginRequiredMixin, View):
@@ -915,37 +909,42 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 netbox_site = Site.objects.filter(**{f"custom_field_data__{cf_name}__iexact": siteid.strip()}).first()
             
             if api_site:
-                if not netbox_site:
-                    # Create new site
-                    sitename_raw = api_site.get('sitename2') or api_site.get('sitename1') or siteid
-                    base_name = sitename_raw
-                    name = base_name
-                    slug = slugify(siteid)
-                    
-                    if Site.objects.filter(slug=slug).exists():
-                        slug = slugify(f"{siteid}-{base_name}")[:100]
-                    if Site.objects.filter(name=name).exists():
-                        name = f"{base_name} ({siteid})"[:100]
-                    
-                    counter = 1
-                    while Site.objects.filter(name=name).exists():
-                        name = f"{base_name} ({siteid}) {counter}"[:100]
-                        counter += 1
+                try:
+                    if not netbox_site:
+                        # Create new site
+                        sitename_raw = api_site.get('sitename2') or api_site.get('sitename1') or siteid
+                        base_name = sitename_raw
+                        name = base_name
+                        slug = slugify(siteid)
                         
-                    netbox_site = Site(
-                        name=name,
-                        slug=slug,
-                        status='active' if api_site.get('status') == 'Operational' else 'planned',
-                        custom_field_data={cf_name: siteid}
-                    )
-                    netbox_site.save()
-                    sync_one_site(netbox_site, api_site, cf_name)
-                    messages.success(request, f"Successfully created and synchronized site {siteid} ({name}) in NetBox.")
-                else:
-                    if sync_one_site(netbox_site, api_site, cf_name):
-                        messages.success(request, f"Successfully synchronized all fields for {siteid} ({netbox_site.name}) to NetBox.")
+                        if Site.objects.filter(slug=slug).exists():
+                            slug = slugify(f"{siteid}-{base_name}")[:100]
+                        if Site.objects.filter(name=name).exists():
+                            name = f"{base_name} ({siteid})"[:100]
+                        
+                        counter = 1
+                        while Site.objects.filter(name=name).exists():
+                            name = f"{base_name} ({siteid}) {counter}"[:100]
+                            counter += 1
+                            
+                        netbox_site = Site(
+                            name=name,
+                            slug=slug,
+                            status='active' if api_site.get('status') == 'Operational' else 'planned',
+                            custom_field_data={cf_name: siteid}
+                        )
+                        netbox_site.save()
+                        sync_one_site(netbox_site, api_site, cf_name)
+                        messages.success(request, f"Successfully created and synchronized site {siteid} ({name}) in NetBox.")
                     else:
-                        messages.info(request, f"Site {siteid} ({netbox_site.name}) is already fully synchronized.")
+                        if sync_one_site(netbox_site, api_site, cf_name):
+                            messages.success(request, f"Successfully synchronized all fields for {siteid} ({netbox_site.name}) to NetBox.")
+                        else:
+                            messages.info(request, f"Site {siteid} ({netbox_site.name}) is already fully synchronized.")
+                except Exception as e:
+                    import traceback
+                    logger.error(f"Sync error for site {siteid}: {traceback.format_exc()}")
+                    messages.error(request, f"Sync error for site {siteid}: {str(e)}")
             else:
                 messages.error(request, f"Failed to sync site {siteid}. Site not found in API data.")
                 
