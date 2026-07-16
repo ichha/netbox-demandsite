@@ -282,34 +282,46 @@ def sync_devices_for_site(netbox_site, api_site):
     - Tech present in API  → device must exist and be Active.
     - Tech absent from API → device must exist and be Offline.
     Creates missing devices when tech is present.
+    Returns a list of debug log strings.
     """
+    logs = []
     techs = parse_api_technologies(api_site)
     siteid  = api_site.get('siteid') or ''
-    sitename = api_site.get('sitename') or netbox_site.name or ''
+    # Match the display expected name logic exactly:
+    api_sitename = api_site.get('sitename2') or api_site.get('sitename1') or api_site.get('sitename') or netbox_site.name or ''
+    
+    logs.append(f"siteid={siteid}, api_sitename={api_sitename}, techs={techs}")
+    
     mfg = get_or_create_manufacturer("Huawei Technologies Co. Ltd.")
     tenant = get_or_create_tenant_and_group()
+    logs.append(f"mfg={mfg.name if mfg else 'None'}, tenant={tenant.name if tenant else 'None'}")
 
     for suffix, tech_key, role_name, model_name, role_color in DEVICE_TECH_MAP:
-        dev_name = f"{siteid}_{sitename}{suffix}"
+        dev_name = f"{siteid}_{api_sitename}{suffix}"
         tech_present = techs[tech_key]
 
         existing = Device.objects.filter(name=dev_name, site=netbox_site).first()
+        logs.append(f"dev_name={dev_name}, present={tech_present}, existing={existing.name if existing else 'None'}")
 
         if tech_present:
             if existing is None:
                 # Create new active device
                 role  = get_or_create_device_role(role_name, color=role_color)
                 dtype = get_or_create_device_type(model_name, mfg)
+                logs.append(f"Creating device {dev_name} (role={role_name}, type={model_name})")
                 create_netbox_device(dev_name, netbox_site, role, dtype)
+                logs.append(f"Device {dev_name} created.")
             else:
                 # Re-activate device & set tenant
                 changed = False
                 if existing.status != 'active':
                     existing.status = 'active'
                     changed = True
+                    logs.append(f"Device {dev_name} status changed to active.")
                 if tenant and existing.tenant != tenant:
                     existing.tenant = tenant
                     changed = True
+                    logs.append(f"Device {dev_name} tenant changed to {tenant.name}.")
                 if changed:
                     existing.save()
         else:
@@ -319,11 +331,14 @@ def sync_devices_for_site(netbox_site, api_site):
                 if existing.status != 'offline':
                     existing.status = 'offline'
                     changed = True
+                    logs.append(f"Device {dev_name} status changed to offline.")
                 if tenant and existing.tenant != tenant:
                     existing.tenant = tenant
                     changed = True
+                    logs.append(f"Device {dev_name} tenant changed to {tenant.name}.")
                 if changed:
                     existing.save()
+    return logs
 
 def sync_one_site(netbox_site, api_site, cf_name):
     """
@@ -331,6 +346,7 @@ def sync_one_site(netbox_site, api_site, cf_name):
     from external API site data to a NetBox site instance.
     """
     updated = False
+    logs = []
     
     # 1. Sync Coordinates (Latitude / Longitude)
     api_lat = api_site.get('latitude')
@@ -341,6 +357,7 @@ def sync_one_site(netbox_site, api_site, cf_name):
             if netbox_site.latitude != dec_lat:
                 netbox_site.latitude = dec_lat
                 updated = True
+                logs.append(f"Updated lat to {dec_lat}")
         except Exception:
             pass
     if api_lon:
@@ -349,6 +366,7 @@ def sync_one_site(netbox_site, api_site, cf_name):
             if netbox_site.longitude != dec_lon:
                 netbox_site.longitude = dec_lon
                 updated = True
+                logs.append(f"Updated lon to {dec_lon}")
         except Exception:
             pass
             
@@ -357,17 +375,21 @@ def sync_one_site(netbox_site, api_site, cf_name):
     if api_status == 'Operational' and netbox_site.status != 'active':
         netbox_site.status = 'active'
         updated = True
+        logs.append("Updated status to active")
     elif api_status == 'Planned' and netbox_site.status != 'planned':
         netbox_site.status = 'planned'
         updated = True
+        logs.append("Updated status to planned")
     elif api_status == 'Discontinued' and netbox_site.status != 'decommissioning':
         netbox_site.status = 'decommissioning'
         updated = True
+        logs.append("Updated status to decommissioning")
 
     # 2.2. Sync Site Name from API
     api_name = api_site.get('sitename') or api_site.get('sitename2') or api_site.get('sitename1')
     if api_name and api_name != '—':
         if netbox_site.name != api_name:
+            logs.append(f"Changing site name from {netbox_site.name} to {api_name}")
             netbox_site.name = api_name
             updated = True
 
@@ -386,6 +408,7 @@ def sync_one_site(netbox_site, api_site, cf_name):
         if region_obj and netbox_site.region != region_obj:
             netbox_site.region = region_obj
             updated = True
+            logs.append(f"Updated region to {region_obj.name}")
         
     # 3. Sync Description containing Local Divisions
     desc_parts = []
@@ -399,6 +422,7 @@ def sync_one_site(netbox_site, api_site, cf_name):
     if new_desc and netbox_site.description != new_desc:
         netbox_site.description = new_desc
         updated = True
+        logs.append(f"Updated description to {new_desc}")
 
     # 4. Sync Custom Fields (District, Local Level Name, Local Level, Ward)
     district_key = get_cf_key(netbox_site, ['district'])
@@ -412,11 +436,10 @@ def sync_one_site(netbox_site, api_site, cf_name):
     choices_map = build_cf_choices_map()
     
     def get_choice_key_for_label(cf_name, label):
-        # Look for the choice key corresponding to the display label
         for (name, key), lbl in choices_map.items():
             if name.lower() == cf_name.lower() and str(lbl).strip().upper() == str(label).strip().upper():
                 return key
-        return label # fallback to direct value if no matching selection choice is found
+        return label
 
     if district_key and api_site.get('district'):
         val = api_site.get('district')
@@ -424,13 +447,13 @@ def sync_one_site(netbox_site, api_site, cf_name):
         if netbox_site.custom_field_data.get(district_key) != choice_key:
             netbox_site.custom_field_data[district_key] = choice_key
             updated = True
+            logs.append(f"Updated CF district to {val}")
             
     if local_level_name_key and api_site.get('palika'):
         val = api_site.get('palika')
         val_clean = clean_palika_name(val)
         choice_key = get_choice_key_for_label(local_level_name_key, val_clean)
         
-        # Compare first word only to see if they already match
         api_palika_first = val_clean.split()[0] if val_clean else ''
         existing_val = netbox_site.custom_field_data.get(local_level_name_key)
         resolved_existing = resolve_cf_display(local_level_name_key, existing_val, choices_map)
@@ -439,6 +462,7 @@ def sync_one_site(netbox_site, api_site, cf_name):
         if api_palika_first.lower() != nb_palika_first.lower():
             netbox_site.custom_field_data[local_level_name_key] = choice_key
             updated = True
+            logs.append(f"Updated CF local level name to {val_clean}")
             
     if local_level_type_key and api_site.get('palika_type'):
         val = api_site.get('palika_type')
@@ -454,6 +478,7 @@ def sync_one_site(netbox_site, api_site, cf_name):
         if netbox_site.custom_field_data.get(local_level_type_key) != choice_key:
             netbox_site.custom_field_data[local_level_type_key] = choice_key
             updated = True
+            logs.append(f"Updated CF local level type to {val}")
             
     if ward_key and api_site.get('wardno') is not None:
         val = api_site.get('wardno')
@@ -466,15 +491,16 @@ def sync_one_site(netbox_site, api_site, cf_name):
             if netbox_site.custom_field_data.get(ward_key) != val:
                 netbox_site.custom_field_data[ward_key] = val
                 updated = True
+                logs.append(f"Updated CF ward to {val}")
         except Exception:
             pass
             
     if updated:
         netbox_site.save()
         
-    # Always run device synchronization (create / activate / offline)
-    sync_devices_for_site(netbox_site, api_site)
-    return True
+    device_logs = sync_devices_for_site(netbox_site, api_site)
+    logs.extend(device_logs)
+    return updated, logs
 
 
 class DemandsiteListView(LoginRequiredMixin, View):
@@ -937,10 +963,12 @@ class DemandsiteListView(LoginRequiredMixin, View):
                         sync_one_site(netbox_site, api_site, cf_name)
                         messages.success(request, f"Successfully created and synchronized site {siteid} ({name}) in NetBox.")
                     else:
-                        if sync_one_site(netbox_site, api_site, cf_name):
-                            messages.success(request, f"Successfully synchronized all fields for {siteid} ({netbox_site.name}) to NetBox.")
+                        updated, logs_list = sync_one_site(netbox_site, api_site, cf_name)
+                        logs_str = " | ".join(logs_list)
+                        if updated or any("Device" in log or "Creating" in log or "changed" in log or "created" in log for log in logs_list):
+                            messages.success(request, f"Successfully synchronized all fields for {siteid} ({netbox_site.name}) to NetBox. Details: {logs_str}")
                         else:
-                            messages.info(request, f"Site {siteid} ({netbox_site.name}) is already fully synchronized.")
+                            messages.info(request, f"Site {siteid} ({netbox_site.name}) is already fully synchronized. Details: {logs_str}")
                 except Exception as e:
                     import traceback
                     logger.error(f"Sync error for site {siteid}: {traceback.format_exc()}")
