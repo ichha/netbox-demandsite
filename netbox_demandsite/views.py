@@ -300,7 +300,8 @@ def sync_devices_for_site(netbox_site, api_site):
         dev_name = f"{siteid}_{api_sitename}{suffix}"
         tech_present = techs[tech_key]
 
-        existing = Device.objects.filter(name=dev_name, site=netbox_site).first()
+        # Case-insensitive filter
+        existing = Device.objects.filter(name__iexact=dev_name, site=netbox_site).first()
         logs.append(f"dev_name={dev_name}, present={tech_present}, existing={existing.name if existing else 'None'}")
 
         if tech_present:
@@ -317,11 +318,11 @@ def sync_devices_for_site(netbox_site, api_site):
                 if existing.status != 'active':
                     existing.status = 'active'
                     changed = True
-                    logs.append(f"Device {dev_name} status changed to active.")
+                    logs.append(f"Device {existing.name} status changed to active.")
                 if tenant and existing.tenant != tenant:
                     existing.tenant = tenant
                     changed = True
-                    logs.append(f"Device {dev_name} tenant changed to {tenant.name}.")
+                    logs.append(f"Device {existing.name} tenant changed to {tenant.name}.")
                 if changed:
                     existing.save()
         else:
@@ -331,11 +332,11 @@ def sync_devices_for_site(netbox_site, api_site):
                 if existing.status != 'offline':
                     existing.status = 'offline'
                     changed = True
-                    logs.append(f"Device {dev_name} status changed to offline.")
+                    logs.append(f"Device {existing.name} status changed to offline.")
                 if tenant and existing.tenant != tenant:
                     existing.tenant = tenant
                     changed = True
-                    logs.append(f"Device {dev_name} tenant changed to {tenant.name}.")
+                    logs.append(f"Device {existing.name} tenant changed to {tenant.name}.")
                 if changed:
                     existing.save()
     return logs
@@ -842,12 +843,12 @@ class DemandsiteListView(LoginRequiredMixin, View):
 
                 if nb_site and nb_site.id in site_devices_map:
                     dev_entries = []  # list of dicts: {name, status}
-                    # Build name→device lookup for this site
+                    # Build name→device lookup for this site (using uppercase name for case-insensitive lookup)
                     name_to_dev = {}
                     for d in site_devices_map[nb_site.id]:
                         role_obj = getattr(d, 'role', None) or getattr(d, 'device_role', None)
                         if role_obj and str(role_obj.name).strip() in BTS_ROLES:
-                            name_to_dev[d.name] = d
+                            name_to_dev[d.name.upper()] = d
                             dev_entries.append({'name': d.name, 'status': d.status})
 
                     item['nb_data']['devices'] = dev_entries
@@ -859,7 +860,8 @@ class DemandsiteListView(LoginRequiredMixin, View):
                     for suffix, tech_key in SUFFIX_TECH.items():
                         expected_name   = f"{api_siteid}_{api_sitename}{suffix}"
                         tech_present    = api_techs.get(tech_key, False)
-                        existing_device = name_to_dev.get(expected_name)
+                        # Case-insensitive lookup
+                        existing_device = name_to_dev.get(expected_name.upper())
 
                         if tech_present:
                             # Device should exist and be active, and tenant set to WSD
