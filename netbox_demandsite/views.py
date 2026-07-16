@@ -856,7 +856,21 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 '_api_techs': parse_api_technologies(item),
             })
             
+        # Filter by card selection
+        filter_type = request.GET.get('filter', '').strip().lower()
+        if filter_type:
+            filtered = []
+            for item in correlated_sites:
+                if filter_type == 'matched' and item['netbox_site'] is not None:
+                    filtered.append(item)
+                elif filter_type == 'not_in_netbox' and item['netbox_site'] is None:
+                    filtered.append(item)
+                elif filter_type == 'mismatched' and item['has_mismatch']:
+                    filtered.append(item)
+            correlated_sites = filtered
+
         # Pagination
+        total_filtered_sites = len(correlated_sites)
         from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
         paginator = Paginator(correlated_sites, 50)  # 50 items per page
         page_num = request.GET.get('page', 1)
@@ -940,8 +954,10 @@ class DemandsiteListView(LoginRequiredMixin, View):
             'total_matched': total_matched,
             'total_not_in_netbox': total_not_in_netbox,
             'total_mismatch': total_mismatch,
+            'total_filtered_sites': total_filtered_sites,
             'cf_name': cf_name,
-            'q': request.GET.get('q', '')
+            'q': request.GET.get('q', ''),
+            'filter': filter_type,
         }
         return render(request, self.template_name, context)
 
@@ -952,6 +968,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
         # Read redirect parameters
         page = request.POST.get('page', '1')
         q = request.POST.get('q', '').strip()
+        filter_type = request.POST.get('filter', '').strip()
         
         redirect_url = reverse('plugins:netbox_demandsite:demandsite_list')
         params = []
@@ -959,6 +976,8 @@ class DemandsiteListView(LoginRequiredMixin, View):
             params.append(f"page={page}")
         if q:
             params.append(f"q={q}")
+        if filter_type:
+            params.append(f"filter={filter_type}")
         if params:
             redirect_url = f"{redirect_url}?{'&'.join(params)}"
 
