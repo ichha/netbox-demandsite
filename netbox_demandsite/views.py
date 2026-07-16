@@ -540,15 +540,27 @@ class DemandsiteListView(LoginRequiredMixin, View):
             messages.error(request, f"Failed to fetch site data from external server: {api_error}")
             
         cf_name = get_site_id_cf_name()
+        
+        # Temporary Diagnostic
+        diag_sites = Site.objects.filter(**{f"custom_field_data__{cf_name}": "WDR302"}) | Site.objects.filter(name__icontains="POKHARANT") | Site.objects.filter(name__icontains="RANIPAUWA")
+        diag_list = []
+        for ds in diag_sites:
+            cf_val = ds.custom_field_data.get(cf_name) if ds.custom_field_data else 'None'
+            diag_list.append(f"ID={ds.id}, Name='{ds.name}', CF_site_id='{cf_val}', Status='{ds.status}'")
+        messages.info(request, f"DIAGNOSTIC: {'; '.join(diag_list)}")
         choices_map = build_cf_choices_map()
         
         # Build mapping of NetBox sites by Site ID custom field (case-insensitive)
+        # We check "if key not in netbox_sites_map" to align with POST handler's `.first()` call
+        # (which returns the alphabetically first site since Site model Meta ordering is ['name']).
         netbox_sites_map = {}
         for site in Site.objects.select_related('region'):
             if site.custom_field_data:
                 site_id_val = site.custom_field_data.get(cf_name)
                 if site_id_val:
-                    netbox_sites_map[str(site_id_val).strip().upper()] = site
+                    key = str(site_id_val).strip().upper()
+                    if key not in netbox_sites_map:
+                        netbox_sites_map[key] = site
                     
         # Calculate stats
         total_api_sites = len(api_sites)
