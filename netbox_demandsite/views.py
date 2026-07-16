@@ -150,6 +150,47 @@ try:
 except ImportError:
     from extras.models import DeviceRole
 
+def get_or_create_tenant_and_group():
+    try:
+        from tenancy.models import Tenant, TenantGroup
+    except ImportError:
+        return None
+
+    # Get or create TenantGroup "Nepal Telecom"
+    group = TenantGroup.objects.filter(name="Nepal Telecom").first()
+    if not group:
+        try:
+            group = TenantGroup.objects.create(
+                name="Nepal Telecom",
+                slug=slugify("Nepal Telecom")
+            )
+        except Exception as e:
+            logger.error(f"Error creating TenantGroup Nepal Telecom: {e}")
+            group = None
+
+    # Get or create Tenant "WSD" under "Nepal Telecom" group
+    tenant = Tenant.objects.filter(name="WSD").first()
+    if not tenant:
+        try:
+            tenant = Tenant.objects.create(
+                name="WSD",
+                slug=slugify("WSD"),
+                group=group
+            )
+        except Exception as e:
+            logger.error(f"Error creating Tenant WSD: {e}")
+            tenant = None
+    else:
+        # If tenant exists but group is not set, set it
+        if group and tenant.group != group:
+            try:
+                tenant.group = group
+                tenant.save()
+            except Exception as e:
+                logger.error(f"Error updating Tenant WSD group: {e}")
+                
+    return tenant
+
 def get_or_create_device_role(name, color="9e9e9e"):
     role = DeviceRole.objects.filter(name=name).first()
     if not role:
@@ -172,13 +213,15 @@ def get_or_create_device_type(model_name, manufacturer):
     return dt
 
 def create_netbox_device(name, site, role, dtype):
+    tenant = get_or_create_tenant_and_group()
     try:
         Device.objects.create(
             name=name,
             site=site,
             role=role,
             device_type=dtype,
-            status='active'
+            status='active',
+            tenant=tenant
         )
     except Exception:
         Device.objects.create(
@@ -186,7 +229,8 @@ def create_netbox_device(name, site, role, dtype):
             site=site,
             device_role=role,
             device_type=dtype,
-            status='active'
+            status='active',
+            tenant=tenant
         )
 
 # Maps device name suffix → (tech_flag_attr, role_name, device_type_model, role_color)
@@ -243,6 +287,7 @@ def sync_devices_for_site(netbox_site, api_site):
     siteid  = api_site.get('siteid') or ''
     sitename = api_site.get('sitename') or netbox_site.name or ''
     mfg = get_or_create_manufacturer("Huawei Technologies Co. Ltd.")
+    tenant = get_or_create_tenant_and_group()
 
     for suffix, tech_key, role_name, model_name, role_color in DEVICE_TECH_MAP:
         dev_name = f"{siteid}_{sitename}{suffix}"
@@ -256,15 +301,29 @@ def sync_devices_for_site(netbox_site, api_site):
                 role  = get_or_create_device_role(role_name, color=role_color)
                 dtype = get_or_create_device_type(model_name, mfg)
                 create_netbox_device(dev_name, netbox_site, role, dtype)
-            elif existing.status != 'active':
-                # Re-activate device
-                existing.status = 'active'
-                existing.save()
+            else:
+                # Re-activate device & set tenant
+                changed = False
+                if existing.status != 'active':
+                    existing.status = 'active'
+                    changed = True
+                if tenant and existing.tenant != tenant:
+                    existing.tenant = tenant
+                    changed = True
+                if changed:
+                    existing.save()
         else:
-            if existing is not None and existing.status != 'offline':
-                # Tech gone from API → mark offline
-                existing.status = 'offline'
-                existing.save()
+            if existing is not None:
+                # Tech gone from API → mark offline & set tenant
+                changed = False
+                if existing.status != 'offline':
+                    existing.status = 'offline'
+                    changed = True
+                if tenant and existing.tenant != tenant:
+                    existing.tenant = tenant
+                    changed = True
+                if changed:
+                    existing.save()
 
 def sync_one_site(netbox_site, api_site, cf_name):
     """
@@ -745,7 +804,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
         # Bulk pre-fetch devices ONLY for the 50 sites on this page
         page_site_ids = [item['netbox_site'].id for item in paginated_sites if item['netbox_site']]
         if page_site_ids:
-            devices = Device.objects.select_related('role').filter(site_id__in=page_site_ids)
+            devices = Device.objects.select_related('role', 'tenant').filter(site_id__in=page_site_ids)
             
             from collections import defaultdict
             site_devices_map = defaultdict(list)
@@ -776,19 +835,25 @@ class DemandsiteListView(LoginRequiredMixin, View):
                     # Check tech_diff: for each suffix, expected status vs actual
                     api_siteid   = item['api_data'].get('siteid', '')
                     api_sitename = item['api_data'].get('sitename', '')
+                    tenant = get_or_create_tenant_and_group()
                     for suffix, tech_key in SUFFIX_TECH.items():
                         expected_name   = f"{api_siteid}_{api_sitename}{suffix}"
                         tech_present    = api_techs.get(tech_key, False)
                         existing_device = name_to_dev.get(expected_name)
 
                         if tech_present:
-                            # Device should exist and be active
+                            # Device should exist and be active, and tenant set to WSD
                             if existing_device is None or existing_device.status != 'active':
                                 tech_diff = True
-                        else:
-                            # Device should not exist or should be offline
-                            if existing_device is not None and existing_device.status != 'offline':
+                            elif tenant and existing_device.tenant_id != tenant.id:
                                 tech_diff = True
+                        else:
+                            # Device should not exist or should be offline, and tenant set to WSD
+                            if existing_device is not None:
+                                if existing_device.status != 'offline':
+                                    tech_diff = True
+                                elif tenant and existing_device.tenant_id != tenant.id:
+                                    tech_diff = True
                 else:
                     # No devices in NetBox at all — diff if API has any tech
                     if any(api_techs.values()):
