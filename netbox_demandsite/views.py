@@ -328,8 +328,12 @@ def sync_devices_for_site(netbox_site, api_site):
         dev_name = f"{siteid}_{api_sitename}{suffix}"
         tech_present = techs[tech_key]
 
-        # Case-insensitive filter
-        existing = Device.objects.filter(name__iexact=dev_name, site=netbox_site).first()
+        # Prefix and suffix match to support variations in sitename spelling/format
+        existing = Device.objects.filter(
+            site=netbox_site,
+            name__istartswith=f"{siteid}_",
+            name__iendswith=suffix
+        ).first()
         logs.append(f"dev_name={dev_name}, present={tech_present}, existing={existing.name if existing else 'None'}")
 
         if tech_present:
@@ -914,13 +918,21 @@ class DemandsiteListView(LoginRequiredMixin, View):
 
                     # Check tech_diff: for each suffix, expected status vs actual
                     api_siteid   = item['api_data'].get('siteid', '')
-                    api_sitename = item['api_data'].get('sitename', '')
                     tenant = get_or_create_tenant_and_group()
                     for suffix, tech_key in SUFFIX_TECH.items():
-                        expected_name   = f"{api_siteid}_{api_sitename}{suffix}"
                         tech_present    = api_techs.get(tech_key, False)
-                        # Case-insensitive lookup
-                        existing_device = name_to_dev.get(expected_name.upper())
+                        
+                        # Find existing device using prefix and suffix matching
+                        existing_device = None
+                        prefix_check = f"{api_siteid}_".upper()
+                        suffix_check = suffix.upper()
+                        for d in site_devices_map[nb_site.id]:
+                            role_obj = getattr(d, 'role', None) or getattr(d, 'device_role', None)
+                            if role_obj and str(role_obj.name).strip() in BTS_ROLES:
+                                d_name_upper = d.name.upper()
+                                if d_name_upper.startswith(prefix_check) and d_name_upper.endswith(suffix_check):
+                                    existing_device = d
+                                    break
 
                         if tech_present:
                             # Device should exist and be active, and tenant set to WSD
