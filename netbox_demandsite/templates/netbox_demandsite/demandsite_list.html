@@ -87,23 +87,29 @@
 
 <!-- Top Actions & Search -->
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <!-- Search Bar -->
-    <form method="get" action="" class="d-flex" style="max-width: 400px; width: 100%;">
-        {% if filter %}
-            <input type="hidden" name="filter" value="{{ filter }}">
-        {% endif %}
-        <div class="input-group">
-            <input type="text" name="q" class="form-control" placeholder="Search by Site ID, Name, District, Palika..." value="{{ q }}">
-            <button class="btn btn-outline-secondary" type="submit">
-                <i class="mdi mdi-magnify"></i> Search
-            </button>
-            {% if q %}
-                <a href="?{% if filter %}filter={{ filter }}{% endif %}" class="btn btn-outline-danger" title="Clear Search">
-                    <i class="mdi mdi-close"></i>
-                </a>
+    <!-- Search Bar & Bulk Actions -->
+    <div class="d-flex align-items-center gap-2 flex-wrap" style="flex: 1; max-width: 600px;">
+        <form method="get" action="" class="d-flex mb-0" style="max-width: 400px; width: 100%;">
+            {% if filter %}
+                <input type="hidden" name="filter" value="{{ filter }}">
             {% endif %}
-        </div>
-    </form>
+            <div class="input-group">
+                <input type="text" name="q" class="form-control" placeholder="Search by Site ID, Name, District, Palika..." value="{{ q }}">
+                <button class="btn btn-outline-secondary" type="submit">
+                    <i class="mdi mdi-magnify"></i> Search
+                </button>
+                {% if q %}
+                    <a href="?{% if filter %}filter={{ filter }}{% endif %}" class="btn btn-outline-danger" title="Clear Search">
+                        <i class="mdi mdi-close"></i>
+                    </a>
+                {% endif %}
+            </div>
+        </form>
+        
+        <button type="button" id="btn-sync-selected" class="btn btn-primary d-flex align-items-center" style="height: 38px;">
+            <i class="mdi mdi-sync me-1"></i> Sync Selected
+        </button>
+    </div>
 
     <!-- Page Title -->
     <h3 class="mb-0 fw-bold">Demandsite Comparison Dashboard</h3>
@@ -243,6 +249,7 @@
             <table class="premium-table">
                 <thead>
                     <tr>
+                        <th style="width: 3%; text-align: center;"><input type="checkbox" id="select-all-sites" style="cursor: pointer;"></th>
                         <th style="width: 5%;">Source</th>
                         <th style="width: 7%;">SiteID</th>
                         <th style="width: 11%;">Sitename/Sitename2</th>
@@ -266,6 +273,11 @@
                         {% else %}
                             <tr class="row-pair-odd">
                         {% endif %}
+                            <!-- Checkbox spanning both rows -->
+                            <td rowspan="2" class="text-center bg-white border-start border-end" style="vertical-align: middle;">
+                                <input type="checkbox" class="site-checkbox" value="{{ site.api_data.siteid }}" style="cursor: pointer;">
+                            </td>
+                            
                             <!-- API Row Source -->
                             <td><span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle py-1">API</span></td>
                             
@@ -463,7 +475,7 @@
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="13" class="text-center py-4 text-muted">
+                            <td colspan="14" class="text-center py-4 text-muted">
                                 <i class="mdi mdi-alert-circle-outline display-6"></i>
                                 <p class="mt-2 mb-0">No matching site correlation records found.</p>
                             </td>
@@ -521,4 +533,92 @@
 
     </div>
 </div>
+{% endblock %}
+
+{% block javascript %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const selectAllCheckbox = document.getElementById('select-all-sites');
+        const siteCheckboxes = document.querySelectorAll('.site-checkbox');
+        const btnSyncSelected = document.getElementById('btn-sync-selected');
+
+        // Select/Deselect All Checkboxes
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', function() {
+                siteCheckboxes.forEach(cb => {
+                    cb.checked = selectAllCheckbox.checked;
+                });
+            });
+        }
+
+        // Handle Sync Selected Button Click
+        if (btnSyncSelected) {
+            btnSyncSelected.addEventListener('click', function() {
+                const selectedIds = [];
+                siteCheckboxes.forEach(cb => {
+                    if (cb.checked) {
+                        selectedIds.push(cb.value);
+                    }
+                });
+
+                if (selectedIds.length === 0) {
+                    alert('Please select at least one site to synchronize.');
+                    return;
+                }
+
+                if (confirm(`Are you sure you want to synchronize the ${selectedIds.length} selected sites?`)) {
+                    // Create dynamic form to submit post request
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '';
+
+                    // Add CSRF Token
+                    const csrfInput = document.createElement('input');
+                    csrfInput.type = 'hidden';
+                    csrfInput.name = 'csrfmiddlewaretoken';
+                    csrfInput.value = '{{ csrf_token }}';
+                    form.appendChild(csrfInput);
+
+                    // Add Action
+                    const actionInput = document.createElement('input');
+                    actionInput.type = 'hidden';
+                    actionInput.name = 'action';
+                    actionInput.value = 'sync_selected';
+                    form.appendChild(actionInput);
+
+                    // Add Redirect Parameters
+                    const pageInput = document.createElement('input');
+                    pageInput.type = 'hidden';
+                    pageInput.name = 'page';
+                    pageInput.value = '{{ correlated_sites.number }}';
+                    form.appendChild(pageInput);
+
+                    const qInput = document.createElement('input');
+                    qInput.type = 'hidden';
+                    qInput.name = 'q';
+                    qInput.value = '{{ q }}';
+                    form.appendChild(qInput);
+
+                    const filterInput = document.createElement('input');
+                    filterInput.type = 'hidden';
+                    filterInput.name = 'filter';
+                    filterInput.value = '{{ filter }}';
+                    form.appendChild(filterInput);
+
+                    // Add Selected IDs
+                    selectedIds.forEach(id => {
+                        const idInput = document.createElement('input');
+                        idInput.type = 'hidden';
+                        idInput.name = 'selected_siteids';
+                        idInput.value = id;
+                        form.appendChild(idInput);
+                    });
+
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            });
+        }
+    });
+</script>
 {% endblock %}

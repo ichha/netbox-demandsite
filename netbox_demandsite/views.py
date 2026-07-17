@@ -1056,6 +1056,68 @@ class DemandsiteListView(LoginRequiredMixin, View):
             else:
                 messages.error(request, f"Failed to sync site {siteid}. Site not found in API data.")
                 
+        elif action == 'sync_selected':
+            siteids = request.POST.getlist('selected_siteids')
+            if not siteids:
+                messages.error(request, "Failed to sync: No sites selected.")
+                return redirect(redirect_url)
+                
+            success_count = 0
+            errors = []
+            for siteid in siteids:
+                if not siteid:
+                    continue
+                api_site = next((x for x in api_sites if str(x.get('siteid')).strip().upper() == str(siteid).strip().upper()), None)
+                if not api_site:
+                    errors.append(f"Site {siteid} not found in API.")
+                    continue
+                    
+                netbox_sites = list(Site.objects.filter(**{f"custom_field_data__{cf_name}": siteid.strip()}))
+                if not netbox_sites:
+                    netbox_sites = list(Site.objects.filter(**{f"custom_field_data__{cf_name}__iexact": siteid.strip()}))
+                    
+                api_name = api_site.get('sitename') or api_site.get('sitename2') or api_site.get('sitename1') or ''
+                netbox_site = find_best_site_match(netbox_sites, api_name)
+                
+                try:
+                    if not netbox_site:
+                        # Create new site
+                        sitename_raw = api_site.get('sitename2') or api_site.get('sitename1') or siteid
+                        base_name = sitename_raw
+                        name = base_name
+                        slug = slugify(siteid)
+                        
+                        if Site.objects.filter(slug=slug).exists():
+                            slug = slugify(f"{siteid}-{base_name}")[:100]
+                        if Site.objects.filter(name=name).exists():
+                            name = f"{base_name} ({siteid})"[:100]
+                        
+                        counter = 1
+                        while Site.objects.filter(name=name).exists():
+                            name = f"{base_name} ({siteid}) {counter}"[:100]
+                            counter += 1
+                            
+                        netbox_site = Site(
+                            name=name,
+                            slug=slug,
+                            status='active' if api_site.get('status') == 'Operational' else 'planned',
+                            custom_field_data={cf_name: siteid}
+                        )
+                        netbox_site.save()
+                        sync_one_site(netbox_site, api_site, cf_name)
+                    else:
+                        sync_one_site(netbox_site, api_site, cf_name)
+                    success_count += 1
+                except Exception as e:
+                    import traceback
+                    logger.error(f"Sync error for site {siteid}: {traceback.format_exc()}")
+                    errors.append(f"Site {siteid}: {str(e)}")
+                    
+            if success_count > 0:
+                messages.success(request, f"Successfully synchronized {success_count} sites.")
+            if errors:
+                messages.error(request, f"Failed to sync some sites: {', '.join(errors[:5])}")
+                
         return redirect(redirect_url)
 
 
