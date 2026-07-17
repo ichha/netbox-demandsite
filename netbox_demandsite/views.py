@@ -745,13 +745,13 @@ class DemandsiteListView(LoginRequiredMixin, View):
                     
                 if api_lat:
                     try:
-                        if not matched_site.latitude or abs(float(matched_site.latitude) - float(api_lat)) > 0.00001:
+                        if matched_site.latitude is None or abs(float(matched_site.latitude) - float(api_lat)) > 0.00001:
                             lat_diff = True
                     except Exception:
                         pass
                 if api_lon:
                     try:
-                        if not matched_site.longitude or abs(float(matched_site.longitude) - float(api_lon)) > 0.00001:
+                        if matched_site.longitude is None or abs(float(matched_site.longitude) - float(api_lon)) > 0.00001:
                             lon_diff = True
                     except Exception:
                         pass
