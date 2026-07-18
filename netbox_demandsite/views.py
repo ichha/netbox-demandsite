@@ -437,7 +437,7 @@ def sync_one_site(netbox_site, api_site, cf_name):
         logs.append("Updated status to decommissioning")
 
     # 2.2. Sync NetBox Site name to API SiteID, and custom field site_name to API sitename
-    if siteid and netbox_site.name != siteid:
+    if siteid:
         target_name = siteid
         # Ensure unique site name in NetBox
         if Site.objects.filter(name=target_name).exclude(id=netbox_site.id).exists():
@@ -451,6 +451,21 @@ def sync_one_site(netbox_site, api_site, cf_name):
             logs.append(f"Changing NetBox site name from {netbox_site.name} to {target_name}")
             netbox_site.name = target_name
             updated = True
+
+        expected_slug = slugify(siteid.strip().lower())
+        if netbox_site.slug != expected_slug:
+            # Check if slug is already taken by a DIFFERENT site
+            target_slug = expected_slug
+            if Site.objects.filter(slug=target_slug).exclude(id=netbox_site.id).exists():
+                target_slug = f"{expected_slug}-{netbox_site.id}"[:100]
+            counter = 1
+            while Site.objects.filter(slug=target_slug).exclude(id=netbox_site.id).exists():
+                target_slug = f"{expected_slug}-{netbox_site.id}-{counter}"[:100]
+                counter += 1
+            if netbox_site.slug != target_slug:
+                logs.append(f"Changing slug from {netbox_site.slug} to {target_slug}")
+                netbox_site.slug = target_slug
+                updated = True
 
     api_name = api_site.get('sitename') or api_site.get('sitename2') or api_site.get('sitename1')
     if api_name and api_name != '—':
@@ -659,6 +674,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
         total_mismatch = 0
         total_matched = 0
         total_not_in_netbox = 0
+        total_synced = 0
         
         import re
         
@@ -853,6 +869,8 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 total_matched += 1
                 if has_mismatch:
                     total_mismatch += 1
+                else:
+                    total_synced += 1
             else:
                 total_not_in_netbox += 1
                 
@@ -901,6 +919,8 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 elif filter_type == 'not_in_netbox' and item['netbox_site'] is None:
                     filtered.append(item)
                 elif filter_type == 'mismatched' and item['has_mismatch']:
+                    filtered.append(item)
+                elif filter_type == 'synced' and item['netbox_site'] is not None and not item['has_mismatch']:
                     filtered.append(item)
             correlated_sites = filtered
 
@@ -997,6 +1017,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
             'total_matched': total_matched,
             'total_not_in_netbox': total_not_in_netbox,
             'total_mismatch': total_mismatch,
+            'total_synced': total_synced,
             'total_filtered_sites': total_filtered_sites,
             'cf_name': cf_name,
             'q': request.GET.get('q', ''),

@@ -116,9 +116,9 @@
 </div>
 
 <!-- Premium Stats Dashboard -->
-<div class="row g-3 mb-4">
+<div class="row row-cols-1 row-cols-md-5 g-3 mb-4">
     <!-- Card 1: Total API Sites -->
-    <div class="col-xl-3 col-md-6">
+    <div class="col">
         <a href="?{% if q %}q={{ q }}{% endif %}" class="premium-card-link" title="Click to view all sites">
             <div class="card border-0 shadow-sm h-100 overflow-hidden{% if not filter %} filter-active-border{% endif %}" style="border-radius: 12px;">
                 <div style="height: 4px; background: linear-gradient(90deg, #6366f1, #818cf8);"></div>
@@ -143,30 +143,30 @@
     </div>
 
     <!-- Card 2: Matched Sites -->
-    <div class="col-xl-3 col-md-6">
+    <div class="col">
         <a href="?filter=matched{% if q %}&q={{ q }}{% endif %}" class="premium-card-link" title="Click to filter matched sites">
             <div class="card border-0 shadow-sm h-100 overflow-hidden{% if filter == 'matched' %} filter-active-border{% endif %}" style="border-radius: 12px;">
-                <div style="height: 4px; background: linear-gradient(90deg, #10b981, #34d399);"></div>
+                <div style="height: 4px; background: linear-gradient(90deg, #3b82f6, #60a5fa);"></div>
                 <div class="card-body p-3">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
                             <p class="text-uppercase fw-bold mb-1" style="font-size: 10px; letter-spacing: 0.8px; color: #94a3b8;">Matched in NetBox</p>
-                            <h2 class="fw-bold mb-0" style="font-size: 2rem; color: #059669;">{{ total_matched }}</h2>
+                            <h2 class="fw-bold mb-0" style="font-size: 2rem; color: #1d4ed8;">{{ total_matched }}</h2>
                         </div>
-                        <div class="d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #ecfdf5, #d1fae5);">
-                            <i class="mdi mdi-check-decagram fs-4" style="color: #10b981;"></i>
+                        <div class="d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #eff6ff, #dbeafe);">
+                            <i class="mdi mdi-link-variant fs-4" style="color: #3b82f6;"></i>
                         </div>
                     </div>
                     <div class="mt-2 pt-2" style="border-top: 1px solid #f1f5f9;">
                         {% if total_api_sites > 0 %}
                             <div class="d-flex align-items-center justify-content-between mb-1">
                                 <small class="text-muted" style="font-size: 11px;">Match Rate</small>
-                                <small class="fw-bold" style="font-size: 11px; color: #059669;">
+                                <small class="fw-bold" style="font-size: 11px; color: #1d4ed8;">
                                     {% widthratio total_matched total_api_sites 100 %}%
                                 </small>
                             </div>
                             <div class="progress" style="height: 4px; border-radius: 4px; background-color: #f1f5f9;">
-                                <div class="progress-bar" role="progressbar" style="width: {% widthratio total_matched total_api_sites 100 %}%; background: linear-gradient(90deg, #10b981, #34d399); border-radius: 4px;"></div>
+                                <div class="progress-bar" role="progressbar" style="width: {% widthratio total_matched total_api_sites 100 %}%; background: linear-gradient(90deg, #3b82f6, #60a5fa); border-radius: 4px;"></div>
                             </div>
                         {% endif %}
                     </div>
@@ -175,8 +175,41 @@
         </a>
     </div>
 
-    <!-- Card 3: Not in NetBox -->
-    <div class="col-xl-3 col-md-6">
+    <!-- Card 3: Synced Sites -->
+    <div class="col">
+        <a href="?filter=synced{% if q %}&q={{ q }}{% endif %}" class="premium-card-link" title="Click to filter fully synced sites">
+            <div class="card border-0 shadow-sm h-100 overflow-hidden{% if filter == 'synced' %} filter-active-border{% endif %}" style="border-radius: 12px;">
+                <div style="height: 4px; background: linear-gradient(90deg, #10b981, #34d399);"></div>
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <p class="text-uppercase fw-bold mb-1" style="font-size: 10px; letter-spacing: 0.8px; color: #94a3b8;">Synced Sites</p>
+                            <h2 class="fw-bold mb-0" style="font-size: 2rem; color: #047857;">{{ total_synced }}</h2>
+                        </div>
+                        <div class="d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #ecfdf5, #d1fae5);">
+                            <i class="mdi mdi-check-decagram fs-4" style="color: #10b981;"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2 pt-2" style="border-top: 1px solid #f1f5f9;">
+                        {% if total_matched > 0 %}
+                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                <small class="text-muted" style="font-size: 11px;">Sync Success</small>
+                                <small class="fw-bold" style="font-size: 11px; color: #047857;">
+                                    {% widthratio total_synced total_matched 100 %}%
+                                </small>
+                            </div>
+                            <div class="progress" style="height: 4px; border-radius: 4px; background-color: #f1f5f9;">
+                                <div class="progress-bar" role="progressbar" style="width: {% widthratio total_synced total_matched 100 %}%; background: linear-gradient(90deg, #10b981, #34d399); border-radius: 4px;"></div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <!-- Card 4: Not in NetBox -->
+    <div class="col">
         <a href="?filter=not_in_netbox{% if q %}&q={{ q }}{% endif %}" class="premium-card-link" title="Click to filter sites missing in NetBox">
             <div class="card border-0 shadow-sm h-100 overflow-hidden{% if filter == 'not_in_netbox' %} filter-active-border{% endif %}" style="border-radius: 12px;">
                 <div style="height: 4px; background: linear-gradient(90deg, #f59e0b, #fbbf24);"></div>
@@ -208,8 +241,8 @@
         </a>
     </div>
 
-    <!-- Card 4: Value Mismatches -->
-    <div class="col-xl-3 col-md-6">
+    <!-- Card 5: Value Mismatches -->
+    <div class="col">
         <a href="?filter=mismatched{% if q %}&q={{ q }}{% endif %}" class="premium-card-link" title="Click to filter value mismatches">
             <div class="card border-0 shadow-sm h-100 overflow-hidden{% if filter == 'mismatched' %} filter-active-border{% endif %}" style="border-radius: 12px;">
                 <div style="height: 4px; background: linear-gradient(90deg, #ef4444, #f87171);"></div>
