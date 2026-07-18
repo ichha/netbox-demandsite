@@ -750,6 +750,11 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 status_diff = False
                 cf_diff = False
                 name_diff = False
+                siteid_diff = False
+                
+                # Check if NetBox site actual name matches the API Site ID
+                if matched_site.name != siteid:
+                    siteid_diff = True
                 
                 # Check site name mismatch
                 api_name = item.get('sitename') or item.get('sitename2') or item.get('sitename1') or '—'
@@ -839,7 +844,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 # using the site's pre-fetched devices (populated after pagination).
                 # Full device status diff is detected below after device prefetch.
 
-                if lat_diff or lon_diff or status_diff or cf_diff:
+                if lat_diff or lon_diff or status_diff or cf_diff or siteid_diff:
                     has_mismatch = True
                     needs_sync = True
             
@@ -880,6 +885,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 'ward_diff': ward_diff,
                 'status_diff': status_diff,
                 'name_diff': name_diff,
+                'siteid_diff': siteid_diff,
                 'tech_diff': False,  # resolved after device prefetch below
                 '_api_techs': parse_api_technologies(item),
             })

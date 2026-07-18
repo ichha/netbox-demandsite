@@ -379,10 +379,10 @@
                             <td><span class="badge bg-success-subtle text-success border border-success-subtle py-1">Netbox</span></td>
                             
                             <!-- Site ID (Highlight if missing or mismatched) -->
-                            <td class="font-monospace {% if not site.netbox_site %}cell-mismatch{% endif %}">
+                            <td class="font-monospace {% if not site.netbox_site or site.siteid_diff %}cell-mismatch{% endif %}">
                                 {% if site.netbox_site %}
                                     <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="badge bg-secondary text-white badge-site-id text-decoration-none">
-                                        {{ site.nb_data.site_id }} <i class="mdi mdi-open-in-new small text-white-50"></i>
+                                        {{ site.netbox_site.name }} <i class="mdi mdi-open-in-new small text-white-50"></i>
                                     </a>
                                 {% else %}
                                     —
