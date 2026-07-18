@@ -725,6 +725,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
             ward_diff = False
             status_diff = False
             name_diff = False
+            siteid_diff = False
             tech_diff = False
             
             if not matched_site:
