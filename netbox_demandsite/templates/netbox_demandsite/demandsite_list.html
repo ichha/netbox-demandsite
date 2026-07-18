@@ -381,7 +381,9 @@
                             <!-- Site ID (Highlight if missing or mismatched) -->
                             <td class="font-monospace {% if not site.netbox_site %}cell-mismatch{% endif %}">
                                 {% if site.netbox_site %}
-                                    <span class="badge bg-secondary text-white badge-site-id">{{ site.nb_data.site_id }}</span>
+                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="badge bg-secondary text-white badge-site-id text-decoration-none">
+                                        {{ site.nb_data.site_id }} <i class="mdi mdi-open-in-new small text-white-50"></i>
+                                    </a>
                                 {% else %}
                                     —
                                 {% endif %}
@@ -390,9 +392,7 @@
                             <!-- Name -->
                             <td class="{% if site.name_diff %}cell-mismatch{% endif %}">
                                 {% if site.netbox_site %}
-                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="fw-bold text-decoration-none">
-                                        {{ site.nb_data.name }} <i class="mdi mdi-open-in-new small text-muted"></i>
-                                    </a>
+                                    {{ site.nb_data.name }}
                                 {% else %}
                                     —
                                 {% endif %}
