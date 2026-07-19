@@ -591,9 +591,10 @@ class DemandsiteListView(LoginRequiredMixin, View):
     def _get_api_data(self):
         from django.core.cache import cache
         cache_key = "demandsite_api_data"
+        fallback_key = "demandsite_api_data_fallback"
         cached_data = cache.get(cache_key)
         if cached_data is not None:
-            return cached_data, None
+            return cached_data, None, False
 
         url = "https://demandsite.ntc.net.np/api/share/site-dimension"
         from django.conf import settings
@@ -605,20 +606,27 @@ class DemandsiteListView(LoginRequiredMixin, View):
             "Authorization": f"Bearer {api_token}"
         }
         try:
-            response = requests.get(url, headers=headers, timeout=15)
+            response = requests.get(url, headers=headers, timeout=5)
             response.raise_for_status()
             data = response.json()
             # Cache for 10 minutes
             cache.set(cache_key, data, 600)
-            return data, None
+            cache.set(fallback_key, data, 86400 * 7)
+            return data, None, False
         except Exception as e:
             logger.error(f"Error fetching Demandsite data: {e}")
-            return [], str(e)
+            fallback_data = cache.get(fallback_key)
+            if fallback_data is not None:
+                return fallback_data, f"API server is offline ({e}). Using cached data.", True
+            return [], str(e), False
 
     def get(self, request):
-        api_sites, api_error = self._get_api_data()
+        api_sites, api_error, is_fallback = self._get_api_data()
         if api_error:
-            messages.error(request, f"Failed to fetch site data from external server: {api_error}")
+            if is_fallback:
+                messages.warning(request, f"Notice: {api_error}")
+            else:
+                messages.error(request, f"Failed to fetch site data from external server: {api_error}")
             
         cf_name = get_site_id_cf_name()
         choices_map = build_cf_choices_map()
@@ -1045,10 +1053,12 @@ class DemandsiteListView(LoginRequiredMixin, View):
         if params:
             redirect_url = f"{redirect_url}?{'&'.join(params)}"
 
-        api_sites, api_error = self._get_api_data()
-        if api_error:
+        api_sites, api_error, is_fallback = self._get_api_data()
+        if api_error and not is_fallback:
             messages.error(request, f"Sync failed: {api_error}")
             return redirect(redirect_url)
+        elif api_error and is_fallback:
+            messages.warning(request, f"Notice: {api_error} Syncing from cached snapshot.")
             
         if action == 'sync_single':
             siteid = request.POST.get('siteid')
