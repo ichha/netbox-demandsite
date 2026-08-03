@@ -111,11 +111,11 @@
     
     .source-api {
         color: #0d9488;
-        font-weight: 700;
+        font-weight: 600;
     }
     .source-netbox {
         color: #16a34a;
-        font-weight: 700;
+        font-weight: 600;
     }
     .dot-indicator {
         font-size: 16px;
@@ -358,12 +358,12 @@
                             <td><span class="source-api"><span class="dot-indicator">•</span> Demand API</span></td>
                             
                             <!-- Site ID -->
-                            <td class="font-monospace fw-bold" style="font-size: 14px; color: #0f172a; letter-spacing: 0.3px;">
+                            <td class="font-monospace">
                                 {{ site.api_data.siteid }}
                             </td>
                             
                             <!-- Name -->
-                            <td class="fw-bold" style="color: #0f172a;">{{ site.api_data.sitename }}</td>
+                            <td>{{ site.api_data.sitename }}</td>
                             
                             <!-- Province -->
                             <td>{{ site.api_data.province }}</td>
@@ -455,10 +455,10 @@
                             <td><span class="source-netbox"><span class="dot-indicator">•</span> NetBox</span></td>
                             
                             <!-- Site ID (Highlight if missing or mismatched) -->
-                            <td class="font-monospace fw-bold {% if not site.netbox_site or site.siteid_diff %}cell-mismatch{% endif %}" style="font-size: 14px; letter-spacing: 0.3px;">
+                            <td class="font-monospace {% if not site.netbox_site or site.siteid_diff %}cell-mismatch{% endif %}">
                                 {% if site.netbox_site %}
-                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="text-decoration-none fw-bold" style="color: #2563eb;">
-                                        {{ site.netbox_site.name }} <i class="mdi mdi-open-in-new ms-1" style="font-size: 12px; color: #64748b;"></i>
+                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="text-decoration-none" style="color: #2563eb;">
+                                        {{ site.netbox_site.name }} <i class="mdi mdi-open-in-new ms-1" style="font-size: 11px; color: #64748b;"></i>
                                     </a>
                                 {% else %}
                                     —
@@ -466,7 +466,7 @@
                             </td>
                             
                             <!-- Name -->
-                            <td class="{% if site.name_diff %}cell-mismatch{% endif %} fw-semibold">
+                            <td class="{% if site.name_diff %}cell-mismatch{% endif %}">
                                 {% if site.netbox_site %}
                                     {{ site.nb_data.name }}
                                 {% else %}
