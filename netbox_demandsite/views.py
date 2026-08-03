@@ -41,6 +41,14 @@ def clean_province_name(name):
     if name_str.lower() == 'sudurpaschim':
         return 'Sudurpashchim'
     return name_str
+
+def get_api_site_name(item):
+    if not item or not isinstance(item, dict):
+        return ""
+    val = item.get('sitename2') or item.get('sitename1') or item.get('sitename') or ""
+    if not val or str(val).strip() in ('—', '-'):
+        return ""
+    return str(val).strip()
 def get_cf_key(site, keywords):
     """
     Finds a custom field name registered for the Site model
@@ -437,8 +445,7 @@ def sync_one_site(netbox_site, api_site, cf_name):
         logs.append("Updated status to decommissioning")
 
     # 2.2. Sync NetBox Site name & description to Siteid_sitename, and custom field site_name to API sitename
-    api_name = api_site.get('sitename') or api_site.get('sitename2') or api_site.get('sitename1')
-    api_name_clean = str(api_name).strip() if (api_name and api_name != '—') else ''
+    api_name_clean = get_api_site_name(api_site)
 
     if siteid:
         if api_name_clean:
@@ -691,10 +698,10 @@ class DemandsiteListView(LoginRequiredMixin, View):
         import re
         
         for item in api_sites:
-            siteid = item.get('siteid', '')
-            api_name = item.get('sitename2') or item.get('sitename1') or item.get('sitename') or ''
+            siteid = str(item.get('siteid', '')).strip()
+            api_name = get_api_site_name(item)
             
-            site_list = netbox_sites_map.get(str(siteid).strip().upper(), [])
+            site_list = netbox_sites_map.get(siteid.upper(), [])
             matched_site = find_best_site_match(site_list, api_name)
             
             # Format API technologies
@@ -716,7 +723,7 @@ class DemandsiteListView(LoginRequiredMixin, View):
             
             api_data = {
                 'siteid': siteid,
-                'sitename': item.get('sitename2') or item.get('sitename1') or '—',
+                'sitename': api_name or '—',
                 'province': item.get('province') or '—',
                 'district': item.get('district') or '—',
                 'palika': item.get('palika') or '—',
@@ -782,15 +789,13 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 siteid_diff = False
                 
                 # Check if NetBox site actual name matches expected SiteID_sitename
-                api_name_val = item.get('sitename2') or item.get('sitename1') or item.get('sitename') or ''
-                api_name_clean = str(api_name_val).strip() if (api_name_val and api_name_val != '—') else ''
-                expected_site_name = f"{siteid}_{api_name_clean}" if (siteid and api_name_clean) else str(siteid).strip()
+                expected_site_name = f"{siteid}_{api_name}" if (siteid and api_name) else siteid
                 if matched_site.name != expected_site_name:
                     siteid_diff = True
                 
                 # Check site name mismatch
-                api_name = item.get('sitename') or item.get('sitename2') or item.get('sitename1') or '—'
-                if api_name and api_name != '—' and nb_data['name'] != api_name:
+                nb_name = str(nb_data['name']).strip() if nb_data['name'] != '—' else ''
+                if api_name and nb_name != api_name:
                     name_diff = True
                     cf_diff = True
                 
@@ -1081,15 +1086,14 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 # Case-insensitive fallback
                 netbox_sites = list(Site.objects.filter(**{f"custom_field_data__{cf_name}__iexact": siteid.strip()}))
             
-            api_name = api_site.get('sitename') or api_site.get('sitename2') or api_site.get('sitename1') or ''
+            api_name = get_api_site_name(api_site)
             netbox_site = find_best_site_match(netbox_sites, api_name)
             
             if api_site:
                 try:
                     if not netbox_site:
                         # Create new site
-                        sitename_raw = api_site.get('sitename2') or api_site.get('sitename1') or api_site.get('sitename') or ''
-                        sitename_clean = str(sitename_raw).strip() if (sitename_raw and sitename_raw != '—') else ''
+                        sitename_clean = get_api_site_name(api_site)
                         desired_name = f"{siteid}_{sitename_clean}" if (siteid and sitename_clean) else str(siteid).strip()
                         
                         name = desired_name
@@ -1151,14 +1155,13 @@ class DemandsiteListView(LoginRequiredMixin, View):
                 if not netbox_sites:
                     netbox_sites = list(Site.objects.filter(**{f"custom_field_data__{cf_name}__iexact": siteid.strip()}))
                     
-                api_name = api_site.get('sitename') or api_site.get('sitename2') or api_site.get('sitename1') or ''
+                api_name = get_api_site_name(api_site)
                 netbox_site = find_best_site_match(netbox_sites, api_name)
                 
                 try:
                     if not netbox_site:
                         # Create new site
-                        sitename_raw = api_site.get('sitename2') or api_site.get('sitename1') or api_site.get('sitename') or ''
-                        sitename_clean = str(sitename_raw).strip() if (sitename_raw and sitename_raw != '—') else ''
+                        sitename_clean = get_api_site_name(api_site)
                         desired_name = f"{siteid}_{sitename_clean}" if (siteid and sitename_clean) else str(siteid).strip()
                         
                         name = desired_name
