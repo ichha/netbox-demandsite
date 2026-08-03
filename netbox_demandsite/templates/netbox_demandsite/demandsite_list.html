@@ -5,8 +5,70 @@
 
 {% block content %}
 
-<!-- Custom Styles for Premium UI Alignment -->
+<!-- Custom Styles for Premium UI Alignment (Matching Zabbix / NetBox Dashboard Style) -->
 <style>
+    .card-stat {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+    }
+    .card-stat:hover {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    }
+    .stat-circle-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        flex-shrink: 0;
+    }
+    .stat-title {
+        font-size: 11px;
+        font-weight: 700;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 2px;
+    }
+    .stat-number {
+        font-size: 22px;
+        font-weight: 800;
+        color: #0f172a;
+        line-height: 1.2;
+    }
+    .stat-subtext {
+        font-size: 11px;
+        color: #64748b;
+        margin-top: 2px;
+    }
+    
+    /* Active filter highlight borders */
+    .filter-active-total {
+        border: 2px solid #0f766e !important;
+        background-color: #ffffff !important;
+    }
+    .filter-active-matched {
+        border: 2px solid #2563eb !important;
+        background-color: #ffffff !important;
+    }
+    .filter-active-synced {
+        border: 2px solid #16a34a !important;
+        background-color: #ffffff !important;
+    }
+    .filter-active-not_in_netbox {
+        border: 2px solid #d97706 !important;
+        background-color: #ffffff !important;
+    }
+    .filter-active-mismatched {
+        border: 2px solid #dc2626 !important;
+        background-color: #ffffff !important;
+    }
+
+    /* Table Styles */
     .premium-table {
         border-collapse: separate;
         border-spacing: 0;
@@ -15,14 +77,14 @@
         background-color: #ffffff;
     }
     .premium-table th {
-        background-color: #f1f5f9;
-        color: #334155;
+        background-color: #f8fafc;
+        color: #475569;
         font-weight: 700;
         text-transform: uppercase;
-        font-size: 11px;
+        font-size: 10px;
         letter-spacing: 0.5px;
         padding: 10px 12px;
-        border-bottom: 2px solid #e2e8f0;
+        border-bottom: 1px solid #e2e8f0;
         border-top: 1px solid #e2e8f0;
     }
     .premium-table td {
@@ -30,22 +92,37 @@
         border-bottom: 1px solid #f1f5f9;
         color: #334155;
     }
-    /* Alternating site pairs with elegant soft tints (using !important to override NetBox theme) */
+    
     .row-pair-even td {
         background-color: #ffffff !important;
     }
     .row-pair-odd td {
-        background-color: #fffaf7 !important; /* Elegant, premium soft orange tint */
+        background-color: #f8fafc !important;
     }
     .row-border-bottom td {
-        border-bottom: 2px solid #cbd5e1 !important; /* Elegant divider between site pairs */
+        border-bottom: 2px solid #e2e8f0 !important;
     }
-    /* Highlight cell for mismatch */
+    
     .cell-mismatch {
-        color: #e11d48 !important; /* Rose-600 */
+        color: #dc2626 !important;
         font-weight: 600;
-        background-color: #fff1f2 !important; /* Rose-50 */
+        background-color: #fef2f2 !important;
     }
+    
+    .source-api {
+        color: #0d9488;
+        font-weight: 700;
+    }
+    .source-netbox {
+        color: #16a34a;
+        font-weight: 700;
+    }
+    .dot-indicator {
+        font-size: 16px;
+        line-height: 1;
+        margin-right: 2px;
+    }
+
     .badge-site-id {
         font-family: var(--font-monospace, monospace);
         font-weight: 700;
@@ -55,153 +132,110 @@
     .badge-tech {
         font-size: 10px;
         font-weight: 600;
-        padding: 3px 6px;
+        padding: 2px 6px;
         white-space: nowrap;
-    }
-    .badge-status {
-        font-size: 10px;
-        font-weight: 700;
-        padding: 4px 8px;
+        background-color: #e0f2fe;
+        color: #0284c7;
+        border: 1px solid #bae6fd;
         border-radius: 4px;
-        display: inline-block;
     }
-    .premium-card-link {
-        text-decoration: none !important;
-        color: inherit !important;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        display: block;
-        cursor: pointer;
+    
+    .badge-status-active {
+        background-color: #dcfce7;
+        color: #15803d;
+        border: 1px solid #86efac;
+        font-weight: 600;
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
     }
-    .premium-card-link:hover {
-        transform: translateY(-3px);
+    .badge-status-planned {
+        background-color: #e0f2fe;
+        color: #0369a1;
+        border: 1px solid #7dd3fc;
+        font-weight: 600;
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
     }
-    .premium-card-link:hover .card {
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04) !important;
+    .badge-status-other {
+        background-color: #ffedd5;
+        color: #c2410c;
+        border: 1px solid #fed7aa;
+        font-weight: 600;
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
     }
-    /* Active filter card border highlight */
-    .filter-active-border {
-        outline: 2px solid #6366f1 !important;
-        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15) !important;
+
+    .btn-teal {
+        background-color: #0f766e;
+        color: #ffffff;
+        border: none;
+        font-weight: 600;
+    }
+    .btn-teal:hover {
+        background-color: #0d9488;
+        color: #ffffff;
     }
 </style>
 
-<!-- Top Actions & Search -->
-<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <!-- Search Bar & Bulk Actions -->
-    <div class="d-flex align-items-center gap-2 flex-wrap" style="flex: 1; max-width: 600px;">
-        <form method="get" action="" class="d-flex mb-0" style="max-width: 400px; width: 100%;">
-            {% if filter %}
-                <input type="hidden" name="filter" value="{{ filter }}">
-            {% endif %}
-            <div class="input-group">
-                <input type="text" name="q" class="form-control" placeholder="Search by Site ID, Name, District, Palika..." value="{{ q }}">
-                <button class="btn btn-outline-secondary" type="submit">
-                    <i class="mdi mdi-magnify"></i> Search
-                </button>
-                {% if q %}
-                    <a href="?{% if filter %}filter={{ filter }}{% endif %}" class="btn btn-outline-danger" title="Clear Search">
-                        <i class="mdi mdi-close"></i>
-                    </a>
-                {% endif %}
-            </div>
-        </form>
-        
-        <button type="button" id="btn-sync-selected" class="btn btn-primary d-flex align-items-center" style="height: 38px;">
-            <i class="mdi mdi-sync me-1"></i> Sync Selected
-        </button>
-    </div>
-
-    <!-- Page Title -->
-    <h3 class="mb-0 fw-bold">Demandsite Comparison Dashboard</h3>
-</div>
-
-<!-- Premium Stats Dashboard -->
-<div class="row row-cols-1 row-cols-md-5 g-3 mb-4">
-    <!-- Card 1: Total API Sites -->
+<!-- Top Dashboard Cards (Zabbix/NetBox Alignment Style) -->
+<div class="row row-cols-1 row-cols-md-5 g-3 mb-3">
+    <!-- Card 1: Total Demand Sites -->
     <div class="col">
-        <a href="?{% if q %}q={{ q }}{% endif %}" class="premium-card-link" title="Click to view all sites">
-            <div class="card border-0 shadow-sm h-100 overflow-hidden{% if not filter %} filter-active-border{% endif %}" style="border-radius: 12px;">
-                <div style="height: 4px; background: linear-gradient(90deg, #6366f1, #818cf8);"></div>
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <p class="text-uppercase fw-bold mb-1" style="font-size: 10px; letter-spacing: 0.8px; color: #94a3b8;">Total API Sites</p>
-                            <h2 class="fw-bold mb-0" style="font-size: 2rem; color: #1e293b;">{{ total_api_sites }}</h2>
-                        </div>
-                        <div class="d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #eef2ff, #e0e7ff);">
-                            <i class="mdi mdi-antenna fs-4" style="color: #6366f1;"></i>
-                        </div>
+        <a href="?{% if q %}q={{ q }}{% endif %}" class="text-decoration-none" title="Click to view all sites">
+            <div class="card-stat p-3 h-100{% if not filter %} filter-active-total{% endif %}">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-circle-icon" style="background-color: #0f766e; color: #ffffff;">
+                        <i class="mdi mdi-menu"></i>
                     </div>
-                    <div class="mt-2 pt-2" style="border-top: 1px solid #f1f5f9;">
-                        <small class="text-muted" style="font-size: 11px;">
-                            <i class="mdi mdi-information-outline me-1"></i>Sites fetched from Demand API
-                        </small>
+                    <div>
+                        <div class="stat-title">TOTAL DEMAND SITES</div>
+                        <div class="stat-number">{{ total_api_sites }}</div>
+                        <div class="stat-subtext">All sites fetched from Demand API</div>
                     </div>
                 </div>
             </div>
         </a>
     </div>
 
-    <!-- Card 2: Matched Sites -->
+    <!-- Card 2: Matched in NetBox -->
     <div class="col">
-        <a href="?filter=matched{% if q %}&q={{ q }}{% endif %}" class="premium-card-link" title="Click to filter matched sites">
-            <div class="card border-0 shadow-sm h-100 overflow-hidden{% if filter == 'matched' %} filter-active-border{% endif %}" style="border-radius: 12px;">
-                <div style="height: 4px; background: linear-gradient(90deg, #3b82f6, #60a5fa);"></div>
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <p class="text-uppercase fw-bold mb-1" style="font-size: 10px; letter-spacing: 0.8px; color: #94a3b8;">Matched in NetBox</p>
-                            <h2 class="fw-bold mb-0" style="font-size: 2rem; color: #1d4ed8;">{{ total_matched }}</h2>
-                        </div>
-                        <div class="d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #eff6ff, #dbeafe);">
-                            <i class="mdi mdi-link-variant fs-4" style="color: #3b82f6;"></i>
-                        </div>
+        <a href="?filter=matched{% if q %}&q={{ q }}{% endif %}" class="text-decoration-none" title="Click to filter matched sites">
+            <div class="card-stat p-3 h-100{% if filter == 'matched' %} filter-active-matched{% endif %}">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-circle-icon" style="background-color: #2563eb; color: #ffffff;">
+                        <i class="mdi mdi-link-variant"></i>
                     </div>
-                    <div class="mt-2 pt-2" style="border-top: 1px solid #f1f5f9;">
-                        {% if total_api_sites > 0 %}
-                            <div class="d-flex align-items-center justify-content-between mb-1">
-                                <small class="text-muted" style="font-size: 11px;">Match Rate</small>
-                                <small class="fw-bold" style="font-size: 11px; color: #1d4ed8;">
-                                    {% widthratio total_matched total_api_sites 100 %}%
-                                </small>
-                            </div>
-                            <div class="progress" style="height: 4px; border-radius: 4px; background-color: #f1f5f9;">
-                                <div class="progress-bar" role="progressbar" style="width: {% widthratio total_matched total_api_sites 100 %}%; background: linear-gradient(90deg, #3b82f6, #60a5fa); border-radius: 4px;"></div>
-                            </div>
-                        {% endif %}
+                    <div>
+                        <div class="stat-title" style="color: #2563eb;">MATCHED IN NETBOX</div>
+                        <div class="stat-number" style="color: #1d4ed8;">{{ total_matched }}</div>
+                        <div class="stat-subtext">Matched in NetBox (Click to filter)</div>
                     </div>
                 </div>
             </div>
         </a>
     </div>
 
-    <!-- Card 3: Synced Sites -->
+    <!-- Card 3: Fully Synced Sites -->
     <div class="col">
-        <a href="?filter=synced{% if q %}&q={{ q }}{% endif %}" class="premium-card-link" title="Click to filter fully synced sites">
-            <div class="card border-0 shadow-sm h-100 overflow-hidden{% if filter == 'synced' %} filter-active-border{% endif %}" style="border-radius: 12px;">
-                <div style="height: 4px; background: linear-gradient(90deg, #10b981, #34d399);"></div>
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <p class="text-uppercase fw-bold mb-1" style="font-size: 10px; letter-spacing: 0.8px; color: #94a3b8;">Synced Sites</p>
-                            <h2 class="fw-bold mb-0" style="font-size: 2rem; color: #047857;">{{ total_synced }}</h2>
-                        </div>
-                        <div class="d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #ecfdf5, #d1fae5);">
-                            <i class="mdi mdi-check-decagram fs-4" style="color: #10b981;"></i>
-                        </div>
+        <a href="?filter=synced{% if q %}&q={{ q }}{% endif %}" class="text-decoration-none" title="Click to filter fully synced sites">
+            <div class="card-stat p-3 h-100{% if filter == 'synced' %} filter-active-synced{% endif %}">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-circle-icon" style="background-color: #16a34a; color: #ffffff;">
+                        <i class="mdi mdi-check-circle"></i>
                     </div>
-                    <div class="mt-2 pt-2" style="border-top: 1px solid #f1f5f9;">
-                        {% if total_matched > 0 %}
-                            <div class="d-flex align-items-center justify-content-between mb-1">
-                                <small class="text-muted" style="font-size: 11px;">Sync Success</small>
-                                <small class="fw-bold" style="font-size: 11px; color: #047857;">
-                                    {% widthratio total_synced total_matched 100 %}%
-                                </small>
-                            </div>
-                            <div class="progress" style="height: 4px; border-radius: 4px; background-color: #f1f5f9;">
-                                <div class="progress-bar" role="progressbar" style="width: {% widthratio total_synced total_matched 100 %}%; background: linear-gradient(90deg, #10b981, #34d399); border-radius: 4px;"></div>
-                            </div>
-                        {% endif %}
+                    <div>
+                        <div class="stat-title" style="color: #16a34a;">FULLY SYNCED</div>
+                        <div class="stat-number" style="color: #15803d;">{{ total_synced }}</div>
+                        <div class="stat-subtext">Zero value mismatches (Click to filter)</div>
                     </div>
                 </div>
             </div>
@@ -210,31 +244,16 @@
 
     <!-- Card 4: Not in NetBox -->
     <div class="col">
-        <a href="?filter=not_in_netbox{% if q %}&q={{ q }}{% endif %}" class="premium-card-link" title="Click to filter sites missing in NetBox">
-            <div class="card border-0 shadow-sm h-100 overflow-hidden{% if filter == 'not_in_netbox' %} filter-active-border{% endif %}" style="border-radius: 12px;">
-                <div style="height: 4px; background: linear-gradient(90deg, #f59e0b, #fbbf24);"></div>
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <p class="text-uppercase fw-bold mb-1" style="font-size: 10px; letter-spacing: 0.8px; color: #94a3b8;">Not in NetBox</p>
-                            <h2 class="fw-bold mb-0" style="font-size: 2rem; color: #d97706;">{{ total_not_in_netbox }}</h2>
-                        </div>
-                        <div class="d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #fffbeb, #fef3c7);">
-                            <i class="mdi mdi-alert-circle-outline fs-4" style="color: #f59e0b;"></i>
-                        </div>
+        <a href="?filter=not_in_netbox{% if q %}&q={{ q }}{% endif %}" class="text-decoration-none" title="Click to filter sites missing in NetBox">
+            <div class="card-stat p-3 h-100{% if filter == 'not_in_netbox' %} filter-active-not_in_netbox{% endif %}">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-circle-icon" style="background-color: #d97706; color: #ffffff;">
+                        <i class="mdi mdi-alert-circle-outline"></i>
                     </div>
-                    <div class="mt-2 pt-2" style="border-top: 1px solid #f1f5f9;">
-                        {% if total_api_sites > 0 %}
-                            <div class="d-flex align-items-center justify-content-between mb-1">
-                                <small class="text-muted" style="font-size: 11px;">Missing Rate</small>
-                                <small class="fw-bold" style="font-size: 11px; color: #d97706;">
-                                    {% widthratio total_not_in_netbox total_api_sites 100 %}%
-                                </small>
-                            </div>
-                            <div class="progress" style="height: 4px; border-radius: 4px; background-color: #f1f5f9;">
-                                <div class="progress-bar" role="progressbar" style="width: {% widthratio total_not_in_netbox total_api_sites 100 %}%; background: linear-gradient(90deg, #f59e0b, #fbbf24); border-radius: 4px;"></div>
-                            </div>
-                        {% endif %}
+                    <div>
+                        <div class="stat-title" style="color: #d97706;">NOT IN NETBOX</div>
+                        <div class="stat-number" style="color: #b45309;">{{ total_not_in_netbox }}</div>
+                        <div class="stat-subtext">Missing in NetBox (Click to filter)</div>
                     </div>
                 </div>
             </div>
@@ -243,31 +262,16 @@
 
     <!-- Card 5: Value Mismatches -->
     <div class="col">
-        <a href="?filter=mismatched{% if q %}&q={{ q }}{% endif %}" class="premium-card-link" title="Click to filter value mismatches">
-            <div class="card border-0 shadow-sm h-100 overflow-hidden{% if filter == 'mismatched' %} filter-active-border{% endif %}" style="border-radius: 12px;">
-                <div style="height: 4px; background: linear-gradient(90deg, #ef4444, #f87171);"></div>
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <p class="text-uppercase fw-bold mb-1" style="font-size: 10px; letter-spacing: 0.8px; color: #94a3b8;">Value Mismatches</p>
-                            <h2 class="fw-bold mb-0" style="font-size: 2rem; color: #dc2626;">{{ total_mismatch }}</h2>
-                        </div>
-                        <div class="d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #fef2f2, #fee2e2);">
-                            <i class="mdi mdi-swap-horizontal-bold fs-4" style="color: #ef4444;"></i>
-                        </div>
+        <a href="?filter=mismatched{% if q %}&q={{ q }}{% endif %}" class="text-decoration-none" title="Click to filter value mismatches">
+            <div class="card-stat p-3 h-100{% if filter == 'mismatched' %} filter-active-mismatched{% endif %}">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-circle-icon" style="background-color: #dc2626; color: #ffffff;">
+                        <i class="mdi mdi-alert-circle"></i>
                     </div>
-                    <div class="mt-2 pt-2" style="border-top: 1px solid #f1f5f9;">
-                        {% if total_matched > 0 %}
-                            <div class="d-flex align-items-center justify-content-between mb-1">
-                                <small class="text-muted" style="font-size: 11px;">Of matched sites</small>
-                                <small class="fw-bold" style="font-size: 11px; color: #dc2626;">
-                                    {% widthratio total_mismatch total_matched 100 %}%
-                                </small>
-                            </div>
-                            <div class="progress" style="height: 4px; border-radius: 4px; background-color: #f1f5f9;">
-                                <div class="progress-bar" role="progressbar" style="width: {% widthratio total_mismatch total_matched 100 %}%; background: linear-gradient(90deg, #ef4444, #f87171); border-radius: 4px;"></div>
-                            </div>
-                        {% endif %}
+                    <div>
+                        <div class="stat-title" style="color: #dc2626;">VALUE MISMATCHES</div>
+                        <div class="stat-number" style="color: #b91c1c;">{{ total_mismatch }}</div>
+                        <div class="stat-subtext">Value mismatch (Click to filter)</div>
                     </div>
                 </div>
             </div>
@@ -275,27 +279,66 @@
     </div>
 </div>
 
+<!-- Filter & Actions Control Bar -->
+<div class="card border-0 shadow-sm mb-3" style="border-radius: 8px; background-color: #ffffff; border: 1px solid #e2e8f0 !important;">
+    <div class="card-body p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <!-- Search & Filter Controls -->
+        <div class="d-flex align-items-center gap-2 flex-wrap" style="flex: 1;">
+            <span class="fw-bold text-secondary" style="font-size: 13px;">Search Sites:</span>
+            <form method="get" action="" class="d-flex mb-0 gap-2" style="max-width: 420px; width: 100%;">
+                {% if filter %}
+                    <input type="hidden" name="filter" value="{{ filter }}">
+                {% endif %}
+                <div class="input-group">
+                    <span class="input-group-text bg-white text-muted border-end-0"><i class="mdi mdi-magnify"></i></span>
+                    <input type="text" name="q" class="form-control border-start-0 ps-0" placeholder="Type keyword to filter..." value="{{ q }}" style="font-size: 13px;">
+                    {% if q %}
+                        <a href="?{% if filter %}filter={{ filter }}{% endif %}" class="btn btn-outline-secondary border-start-0" title="Clear Search">
+                            <i class="mdi mdi-close"></i>
+                        </a>
+                    {% endif %}
+                </div>
+                <button class="btn btn-teal px-3 d-flex align-items-center" type="submit">
+                    Filter
+                </button>
+            </form>
+
+            <button type="button" id="btn-sync-selected" class="btn btn-success d-flex align-items-center fw-semibold px-3" style="height: 38px;">
+                <i class="mdi mdi-sync me-1"></i> Sync Selected
+            </button>
+        </div>
+
+        <!-- Filter State Badge Indicator -->
+        <div class="d-flex align-items-center">
+            <span class="badge bg-light text-dark border px-3 py-2 fw-semibold" style="font-size: 12px; border-color: #cbd5e1 !important;">
+                <i class="mdi mdi-filter-variant me-1 text-teal" style="color: #0f766e;"></i>
+                Showing {% if filter == 'matched' %}Matched Sites{% elif filter == 'synced' %}Synced Sites{% elif filter == 'not_in_netbox' %}Missing Sites{% elif filter == 'mismatched' %}Mismatched Sites{% else %}All Demand Sites{% endif %}
+            </span>
+        </div>
+    </div>
+</div>
+
 <!-- Main Twin-Row Comparison Table -->
-<div class="card shadow-sm border-0">
+<div class="card shadow-sm border-0" style="border-radius: 8px; border: 1px solid #e2e8f0 !important;">
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="premium-table">
                 <thead>
                     <tr>
                         <th style="width: 3%; text-align: center;"><input type="checkbox" id="select-all-sites" style="cursor: pointer;"></th>
-                        <th style="width: 5%;">Source</th>
-                        <th style="width: 7%;">SiteID</th>
-                        <th style="width: 11%;">Sitename/Sitename2</th>
-                        <th style="width: 6%;">Province</th>
-                        <th style="width: 8%;">District</th>
-                        <th style="width: 12%;">Local Level / Palika</th>
-                        <th style="width: 10%;">Local Level Name/Palika Type</th>
-                        <th style="width: 4%;">Ward No.</th>
-                        <th style="width: 6%;">Lat</th>
-                        <th style="width: 6%;">Long</th>
-                        <th style="width: 5%;">Status</th>
-                        <th style="width: 15%;">Technology</th>
-                        <th class="text-center" style="width: 5%;">Actions</th>
+                        <th style="width: 7%;">SOURCE</th>
+                        <th style="width: 8%;">SITEID</th>
+                        <th style="width: 14%;">SITENAME/SITENAME2</th>
+                        <th style="width: 6%;">PROVINCE</th>
+                        <th style="width: 8%;">DISTRICT</th>
+                        <th style="width: 12%;">LOCAL LEVEL / PALIKA</th>
+                        <th style="width: 11%;">LOCAL LEVEL NAME/PALIKA TYPE</th>
+                        <th style="width: 4%;">WARD NO.</th>
+                        <th style="width: 6%;">LAT</th>
+                        <th style="width: 6%;">LONG</th>
+                        <th style="width: 6%;">STATUS</th>
+                        <th style="width: 10%;">TECHNOLOGY</th>
+                        <th class="text-center" style="width: 7%;">MATCH STATUS</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -312,7 +355,7 @@
                             </td>
                             
                             <!-- API Row Source -->
-                            <td><span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle py-1">API</span></td>
+                            <td><span class="source-api"><span class="dot-indicator">•</span> Demand API</span></td>
                             
                             <!-- Site ID -->
                             <td class="font-monospace fw-bold">
@@ -320,7 +363,7 @@
                             </td>
                             
                             <!-- Name -->
-                            <td class="fw-semibold">{{ site.api_data.sitename }}</td>
+                            <td class="fw-bold" style="color: #0f172a;">{{ site.api_data.sitename }}</td>
                             
                             <!-- Province -->
                             <td>{{ site.api_data.province }}</td>
@@ -344,17 +387,17 @@
                             <!-- Status -->
                             <td>
                                 {% if site.api_data.status == 'Operational' %}
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle badge-status">Operational</span>
+                                    <span class="badge-status-active"><i class="mdi mdi-check-circle-outline me-1"></i> Operational</span>
                                 {% else %}
-                                    <span class="badge bg-info-subtle text-info border border-info-subtle badge-status">{{ site.api_data.status }}</span>
+                                    <span class="badge-status-planned"><i class="mdi mdi-clock-outline me-1"></i> {{ site.api_data.status }}</span>
                                 {% endif %}
                             </td>
                             
                             <td>
                                 {% if site.api_data.technologies %}
-                                    <div class="d-flex flex-column gap-1" style="max-width: 140px;">
+                                    <div class="d-flex flex-wrap gap-1" style="max-width: 140px;">
                                         {% for tech in site.api_data.technologies %}
-                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle badge-tech">{{ tech }}</span>
+                                            <span class="badge-tech">{{ tech }}</span>
                                         {% endfor %}
                                     </div>
                                 {% else %}
@@ -362,7 +405,7 @@
                                 {% endif %}
                             </td>
                             
-                            <!-- Action column spanning both rows -->
+                            <!-- Action / Match status column spanning both rows -->
                             <td rowspan="2" class="text-center bg-white border-start border-end" style="vertical-align: middle;">
                                 {% if site.netbox_site %}
                                     {% if site.needs_sync %}
@@ -375,13 +418,13 @@
                                             {% if filter %}
                                                 <input type="hidden" name="filter" value="{{ filter }}">
                                             {% endif %}
-                                            <button type="submit" class="btn btn-sm btn-warning d-flex align-items-center justify-content-center mx-auto" title="Sync fields to NetBox">
+                                            <button type="submit" class="btn btn-sm w-100" style="background-color: #fef3c7; color: #b45309; border: 1px solid #fde68a; border-radius: 6px; font-weight: 700; padding: 6px 10px;" title="Sync fields to NetBox">
                                                 <i class="mdi mdi-sync me-1"></i> Sync
                                             </button>
                                         </form>
                                     {% else %}
-                                        <span class="text-success fw-bold d-flex align-items-center justify-content-center" title="Synchronized">
-                                            <i class="mdi mdi-check-circle fs-5 me-1"></i> Synced
+                                        <span class="badge w-100" style="background-color: #dcfce7; color: #15803d; border: 1px solid #86efac; border-radius: 6px; padding: 6px 10px; font-size: 11px; font-weight: 700;" title="Synchronized">
+                                            <i class="mdi mdi-check-circle me-1"></i> Matched
                                         </span>
                                     {% endif %}
                                 {% else %}
@@ -394,8 +437,8 @@
                                         {% if filter %}
                                             <input type="hidden" name="filter" value="{{ filter }}">
                                         {% endif %}
-                                        <button type="submit" class="btn btn-sm btn-primary d-flex align-items-center justify-content-center mx-auto" title="Add and Sync site to NetBox">
-                                            <i class="mdi mdi-plus-circle me-1"></i> Sync
+                                        <button type="submit" class="btn btn-sm btn-teal w-100" style="border-radius: 6px; font-weight: 700; padding: 6px 10px;" title="Add and Sync site to NetBox">
+                                            <i class="mdi mdi-plus-circle me-1"></i> Add & Sync
                                         </button>
                                     </form>
                                 {% endif %}
@@ -409,7 +452,7 @@
                             <tr class="row-pair-odd row-border-bottom">
                         {% endif %}
                             <!-- NetBox Source -->
-                            <td><span class="badge bg-success-subtle text-success border border-success-subtle py-1">Netbox</span></td>
+                            <td><span class="source-netbox"><span class="dot-indicator">•</span> NetBox</span></td>
                             
                             <!-- Site ID (Highlight if missing or mismatched) -->
                             <td class="font-monospace {% if not site.netbox_site or site.siteid_diff %}cell-mismatch{% endif %}">
@@ -423,7 +466,7 @@
                             </td>
                             
                             <!-- Name -->
-                            <td class="{% if site.name_diff %}cell-mismatch{% endif %}">
+                            <td class="{% if site.name_diff %}cell-mismatch{% endif %} fw-semibold">
                                 {% if site.netbox_site %}
                                     {{ site.nb_data.name }}
                                 {% else %}
@@ -470,11 +513,11 @@
                             <td class="{% if site.status_diff %}cell-mismatch{% endif %}">
                                 {% if site.netbox_site %}
                                     {% if site.nb_data.status == 'Active' or site.nb_data.status == 'active' %}
-                                        <span class="badge bg-success badge-status">Active</span>
+                                        <span class="badge-status-active"><i class="mdi mdi-check-circle-outline me-1"></i> Active</span>
                                     {% elif site.nb_data.status == 'Planned' or site.nb_data.status == 'planned' %}
-                                        <span class="badge bg-info text-dark badge-status">Planned</span>
+                                        <span class="badge-status-planned"><i class="mdi mdi-clock-outline me-1"></i> Planned</span>
                                     {% elif site.nb_data.status == 'Decommissioning' or site.nb_data.status == 'decommissioning' %}
-                                        <span class="badge badge-status" style="background-color:#ea580c; color:#fff;">Decommissioning</span>
+                                        <span class="badge-status-other">Decommissioning</span>
                                     {% else %}
                                         <span class="badge bg-secondary badge-status">{{ site.nb_data.status }}</span>
                                     {% endif %}
