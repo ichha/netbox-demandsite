@@ -68,13 +68,13 @@
         background-color: #ffffff !important;
     }
 
-    /* Table Styles - Clean Sans-Serif Font Stack Matching NetBox/Zabbix UI */
+    /* Table Styles - 1:1 Match with Zabbix Plugin Table */
     .premium-table {
         border-collapse: separate;
         border-spacing: 0;
         width: 100%;
-        font-size: 13px;
-        font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif !important;
+        font-size: 12px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
         background-color: #ffffff;
     }
     .premium-table th {
@@ -82,30 +82,31 @@
         color: #64748b;
         font-weight: 700;
         text-transform: uppercase;
-        font-size: 11px;
+        font-size: 10px;
         letter-spacing: 0.5px;
-        padding: 10px 12px;
+        padding: 8px 10px;
         border-bottom: 1px solid #e2e8f0;
         border-top: 1px solid #e2e8f0;
-        font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
     }
     .premium-table td {
-        padding: 8px 12px;
-        border-bottom: 1px solid #f1f5f9;
-        color: #000000 !important;
-        font-size: 13px;
+        padding: 6px 10px;
+        border-bottom: none;
+        color: #0f172a;
+        font-size: 12px;
         font-weight: 500;
-        font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif !important;
+        vertical-align: middle;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
     }
     
-    .row-pair-even td {
+    .row-demand-api td {
         background-color: #ffffff !important;
     }
-    .row-pair-odd td {
+    .row-netbox-site td {
         background-color: #f8fafc !important;
     }
     .row-border-bottom td {
-        border-bottom: 2px solid #e2e8f0 !important;
+        border-bottom: 1px solid #e2e8f0 !important;
     }
     
     .cell-mismatch {
@@ -116,16 +117,18 @@
     
     .source-api {
         color: #0d9488;
-        font-weight: 600;
+        font-weight: 700;
+        font-size: 11px;
     }
     .source-netbox {
         color: #16a34a;
-        font-weight: 600;
+        font-weight: 700;
+        font-size: 11px;
     }
     .dot-indicator {
-        font-size: 16px;
+        font-size: 14px;
         line-height: 1;
-        margin-right: 2px;
+        margin-right: 3px;
     }
 
     .badge-site-id {
@@ -348,61 +351,100 @@
                 </thead>
                 <tbody>
                     {% for site in correlated_sites %}
-                        <!-- Alternate row-pair colors -->
-                        {% if forloop.counter|divisibleby:2 %}
-                            <tr class="row-pair-even">
-                        {% else %}
-                            <tr class="row-pair-odd">
-                        {% endif %}
+                        <!-- Row 1: Netbox (White Background) -->
+                        <tr class="row-netbox-site">
                             <!-- Checkbox spanning both rows -->
                             <td rowspan="2" class="text-center bg-white border-start border-end" style="vertical-align: middle;">
                                 <input type="checkbox" class="site-checkbox" value="{{ site.api_data.siteid }}" style="cursor: pointer;">
                             </td>
                             
-                            <!-- API Row Source -->
-                            <td><span class="source-api">Demand</span></td>
+                            <!-- NetBox Source -->
+                            <td><span class="source-netbox"><span class="dot-indicator">•</span> NetBox</span></td>
                             
                             <!-- Site ID -->
-                            <td class="font-monospace fw-bold" style="color: #000000;">
-                                {{ site.api_data.siteid }}
-                            </td>
-                            
-                            <!-- Name -->
-                            <td class="fw-bold" style="color: #000000;">{{ site.api_data.sitename }}</td>
-                            
-                            <!-- Province -->
-                            <td>{{ site.api_data.province }}</td>
-                            
-                            <!-- District -->
-                            <td>{{ site.api_data.district }}</td>
-                            
-                            <!-- Palika -->
-                            <td>{{ site.api_data.palika }}</td>
-                            
-                            <!-- Palika Type -->
-                            <td>{{ site.api_data.palika_type }}</td>
-                            
-                            <!-- Ward -->
-                            <td>{{ site.api_data.wardno }}</td>
-                            
-                            <!-- Lat / Long -->
-                            <td class="font-monospace text-muted">{{ site.api_data.latitude }}</td>
-                            <td class="font-monospace text-muted">{{ site.api_data.longitude }}</td>
-                            
-                            <!-- Status -->
-                            <td>
-                                {% if site.api_data.status == 'Operational' %}
-                                    <span class="badge-status-active"><i class="mdi mdi-check-circle-outline me-1"></i> Operational</span>
+                            <td class="font-monospace fw-bold {% if not site.netbox_site or site.siteid_diff %}cell-mismatch{% endif %}">
+                                {% if site.netbox_site %}
+                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="text-decoration-none fw-bold" style="color: #2563eb;">
+                                        {{ site.netbox_site.name }} <i class="mdi mdi-open-in-new ms-1" style="font-size: 11px; color: #64748b;"></i>
+                                    </a>
                                 {% else %}
-                                    <span class="badge-status-planned"><i class="mdi mdi-clock-outline me-1"></i> {{ site.api_data.status }}</span>
+                                    —
                                 {% endif %}
                             </td>
                             
-                            <td>
-                                {% if site.api_data.technologies %}
-                                    <div class="d-flex flex-wrap gap-1" style="max-width: 140px;">
-                                        {% for tech in site.api_data.technologies %}
-                                            <span class="badge-tech">{{ tech }}</span>
+                            <!-- Name -->
+                            <td class="{% if site.name_diff %}cell-mismatch{% endif %} fw-bold" style="color: #0f172a;">
+                                {% if site.netbox_site %}
+                                    {{ site.nb_data.name }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            
+                            <!-- Province/Region -->
+                            <td class="{% if site.region_diff %}cell-mismatch{% endif %}">
+                                {{ site.nb_data.region }}
+                            </td>
+                            
+                            <!-- District -->
+                            <td class="{% if site.district_diff %}cell-mismatch{% endif %}">
+                                {{ site.nb_data.district }}
+                            </td>
+                            
+                            <!-- Palika Name -->
+                            <td class="{% if site.palika_diff %}cell-mismatch{% endif %}">
+                                {{ site.nb_data.local_level_name }}
+                            </td>
+                            
+                            <!-- Local Level Type -->
+                            <td class="{% if site.local_level_diff %}cell-mismatch{% endif %}">
+                                {{ site.nb_data.local_level }}
+                            </td>
+                            
+                            <!-- Ward -->
+                            <td class="{% if site.ward_diff %}cell-mismatch{% endif %}">
+                                {{ site.nb_data.ward }}
+                            </td>
+                            
+                            <!-- Latitude -->
+                            <td class="font-monospace text-muted {% if site.lat_diff %}cell-mismatch{% endif %}">
+                                {{ site.nb_data.latitude }}
+                            </td>
+                            
+                            <!-- Longitude -->
+                            <td class="font-monospace text-muted {% if site.lon_diff %}cell-mismatch{% endif %}">
+                                {{ site.nb_data.longitude }}
+                            </td>
+                            
+                            <!-- Status -->
+                            <td class="{% if site.status_diff %}cell-mismatch{% endif %}">
+                                {% if site.netbox_site %}
+                                    {% if site.nb_data.status == 'Active' or site.nb_data.status == 'active' %}
+                                        <span class="badge-status-active"><i class="mdi mdi-check-circle-outline me-1"></i> Active</span>
+                                    {% elif site.nb_data.status == 'Planned' or site.nb_data.status == 'planned' %}
+                                        <span class="badge-status-planned"><i class="mdi mdi-clock-outline me-1"></i> Planned</span>
+                                    {% elif site.nb_data.status == 'Decommissioning' or site.nb_data.status == 'decommissioning' %}
+                                        <span class="badge-status-other">Decommissioning</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary badge-status">{{ site.nb_data.status }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            
+                            <!-- NetBox Devices -->
+                            <td class="{% if site.tech_diff %}cell-mismatch{% endif %}">
+                                {% if site.nb_data.devices %}
+                                    <div class="d-flex flex-column gap-1" style="min-width: 140px;">
+                                        {% for dev in site.nb_data.devices %}
+                                            {% if dev.status == 'active' %}
+                                                <span class="badge badge-tech text-nowrap" style="background-color:#dcfce7;color:#166534;border:1px solid #86efac;">
+                                                    <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#16a34a;margin-right:4px;vertical-align:middle;"></span>{{ dev.name }}
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle badge-tech text-nowrap">{{ dev.name }}</span>
+                                            {% endif %}
                                         {% endfor %}
                                     </div>
                                 {% else %}
@@ -450,103 +492,52 @@
                             </td>
                         </tr>
 
-                        <!-- Row 2: Netbox -->
-                        {% if forloop.counter|divisibleby:2 %}
-                            <tr class="row-pair-even row-border-bottom">
-                        {% else %}
-                            <tr class="row-pair-odd row-border-bottom">
-                        {% endif %}
-                            <!-- NetBox Source -->
-                            <td><span class="source-netbox">NetBox</span></td>
+                        <!-- Row 2: Demand API (Light Gray Background) -->
+                        <tr class="row-demand-api row-border-bottom">
+                            <!-- API Row Source -->
+                            <td><span class="source-api"><span class="dot-indicator">•</span> Demand</span></td>
                             
-                            <!-- Site ID (Highlight if missing or mismatched) -->
-                            <td class="font-monospace fw-bold {% if not site.netbox_site or site.siteid_diff %}cell-mismatch{% endif %}">
-                                {% if site.netbox_site %}
-                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="text-decoration-none fw-bold" style="color: #2563eb;">
-                                        {{ site.netbox_site.name }} <i class="mdi mdi-open-in-new ms-1" style="font-size: 11px; color: #64748b;"></i>
-                                    </a>
-                                {% else %}
-                                    —
-                                {% endif %}
+                            <!-- Site ID -->
+                            <td class="font-monospace fw-bold" style="color: #0f172a;">
+                                {{ site.api_data.siteid }}
                             </td>
                             
                             <!-- Name -->
-                            <td class="{% if site.name_diff %}cell-mismatch{% endif %} fw-bold" style="color: #000000;">
-                                {% if site.netbox_site %}
-                                    {{ site.nb_data.name }}
-                                {% else %}
-                                    —
-                                {% endif %}
-                            </td>
+                            <td class="fw-bold" style="color: #0f172a;">{{ site.api_data.sitename }}</td>
                             
-                            <!-- Province/Region -->
-                            <td class="{% if site.region_diff %}cell-mismatch{% endif %}">
-                                {{ site.nb_data.region }}
-                            </td>
+                            <!-- Province -->
+                            <td>{{ site.api_data.province }}</td>
                             
                             <!-- District -->
-                            <td class="{% if site.district_diff %}cell-mismatch{% endif %}">
-                                {{ site.nb_data.district }}
-                            </td>
+                            <td>{{ site.api_data.district }}</td>
                             
-                            <!-- Palika Name -->
-                            <td class="{% if site.palika_diff %}cell-mismatch{% endif %}">
-                                {{ site.nb_data.local_level_name }}
-                            </td>
+                            <!-- Palika -->
+                            <td>{{ site.api_data.palika }}</td>
                             
-                            <!-- Local Level Type -->
-                            <td class="{% if site.local_level_diff %}cell-mismatch{% endif %}">
-                                {{ site.nb_data.local_level }}
-                            </td>
+                            <!-- Palika Type -->
+                            <td>{{ site.api_data.palika_type }}</td>
                             
                             <!-- Ward -->
-                            <td class="{% if site.ward_diff %}cell-mismatch{% endif %}">
-                                {{ site.nb_data.ward }}
-                            </td>
+                            <td>{{ site.api_data.wardno }}</td>
                             
-                            <!-- Latitude -->
-                            <td class="font-monospace {% if site.lat_diff %}cell-mismatch{% endif %}">
-                                {{ site.nb_data.latitude }}
-                            </td>
-                            
-                            <!-- Longitude -->
-                            <td class="font-monospace {% if site.lon_diff %}cell-mismatch{% endif %}">
-                                {{ site.nb_data.longitude }}
-                            </td>
+                            <!-- Lat / Long -->
+                            <td class="font-monospace text-muted">{{ site.api_data.latitude }}</td>
+                            <td class="font-monospace text-muted">{{ site.api_data.longitude }}</td>
                             
                             <!-- Status -->
-                            <td class="{% if site.status_diff %}cell-mismatch{% endif %}">
-                                {% if site.netbox_site %}
-                                    {% if site.nb_data.status == 'Active' or site.nb_data.status == 'active' %}
-                                        <span class="badge-status-active"><i class="mdi mdi-check-circle-outline me-1"></i> Active</span>
-                                    {% elif site.nb_data.status == 'Planned' or site.nb_data.status == 'planned' %}
-                                        <span class="badge-status-planned"><i class="mdi mdi-clock-outline me-1"></i> Planned</span>
-                                    {% elif site.nb_data.status == 'Decommissioning' or site.nb_data.status == 'decommissioning' %}
-                                        <span class="badge-status-other">Decommissioning</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary badge-status">{{ site.nb_data.status }}</span>
-                                    {% endif %}
+                            <td>
+                                {% if site.api_data.status == 'Operational' %}
+                                    <span class="badge-status-active"><i class="mdi mdi-check-circle-outline me-1"></i> Operational</span>
                                 {% else %}
-                                    —
+                                    <span class="badge-status-planned"><i class="mdi mdi-clock-outline me-1"></i> {{ site.api_data.status }}</span>
                                 {% endif %}
                             </td>
                             
-                            <!-- NetBox Devices with specific roles -->
-                            <td class="{% if site.tech_diff %}cell-mismatch{% endif %}">
-                                {% if site.nb_data.devices %}
-                                    <div class="d-flex flex-column gap-1" style="min-width: 180px; max-width: 260px;">
-                                        {% for dev in site.nb_data.devices %}
-                                            {% if dev.status == 'active' %}
-                                                <span class="badge badge-tech text-nowrap" style="background-color:#dcfce7;color:#166534;border:1px solid #86efac;">
-                                                    <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#16a34a;margin-right:4px;vertical-align:middle;"></span>{{ dev.name }}
-                                                </span>
-                                            {% elif dev.status == 'offline' %}
-                                                <span class="badge badge-tech text-nowrap" style="background-color:#fee2e2;color:#991b1b;border:1px solid #fca5a5;">
-                                                    <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#dc2626;margin-right:4px;vertical-align:middle;"></span>{{ dev.name }}
-                                                </span>
-                                            {% else %}
-                                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle badge-tech text-nowrap">{{ dev.name }}</span>
-                                            {% endif %}
+                            <td>
+                                {% if site.api_data.technologies %}
+                                    <div class="d-flex flex-wrap gap-1" style="max-width: 140px;">
+                                        {% for tech in site.api_data.technologies %}
+                                            <span class="badge-tech">{{ tech }}</span>
                                         {% endfor %}
                                     </div>
                                 {% else %}
