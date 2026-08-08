@@ -1214,3 +1214,75 @@ class DemandsiteDetailView(LoginRequiredMixin, View):
 
     def post(self, request, siteid):
         return redirect('plugins:netbox_demandsite:demandsite_list')
+
+
+class DemandsiteServerView(LoginRequiredMixin, View):
+    """
+    Server overview dashboard showing API connection status,
+    total sites, and technology counts (2G, 3G, 4G).
+    """
+    template_name = 'netbox_demandsite/demandsite_server.html'
+
+    def get(self, request):
+        list_view = DemandsiteListView()
+        api_sites, api_error, is_fallback = list_view._get_api_data()
+
+        from django.conf import settings
+        plugin_config = settings.PLUGINS_CONFIG.get('netbox_demandsite', {})
+        api_url = plugin_config.get('api_url', 'https://demandsite.ntc.net.np/api/share/site-dimension')
+        api_token = plugin_config.get('api_token', 'ds_share_7b4a2f8c1e9d3056bf47e382d61a9c8f')
+
+        masked_token = f"{api_token[:14]}... [configured]" if (api_token and len(api_token) > 14) else "[configured]"
+
+        total_sites = len(api_sites)
+        count_2g = 0
+        count_3g = 0
+        count_4g = 0
+        provinces = set()
+        districts = set()
+        palikas = set()
+
+        for site in api_sites:
+            techs = parse_api_technologies(site)
+            if techs.get('2g'):
+                count_2g += 1
+            if techs.get('3g'):
+                count_3g += 1
+            if techs.get('4g'):
+                count_4g += 1
+            if site.get('province') and site.get('province') != '—':
+                provinces.add(str(site.get('province')).strip())
+            if site.get('district') and site.get('district') != '—':
+                districts.add(str(site.get('district')).strip())
+            if site.get('palika') and site.get('palika') != '—':
+                palikas.add(str(site.get('palika')).strip())
+
+        is_connected = (api_error is None) or is_fallback
+        if not api_error:
+            status_label = "Connected"
+            status_color = "success"
+        elif is_fallback:
+            status_label = "Connected (Cached)"
+            status_color = "warning"
+        else:
+            status_label = "Offline"
+            status_color = "danger"
+
+        context = {
+            'api_url': api_url,
+            'masked_token': masked_token,
+            'api_error': api_error,
+            'is_fallback': is_fallback,
+            'is_connected': is_connected,
+            'status_label': status_label,
+            'status_color': status_color,
+            'total_sites': total_sites,
+            'count_2g': count_2g,
+            'count_3g': count_3g,
+            'count_4g': count_4g,
+            'total_provinces': len(provinces),
+            'total_districts': len(districts),
+            'total_palikas': len(palikas),
+        }
+        return render(request, self.template_name, context)
+

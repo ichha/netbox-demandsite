@@ -9,6 +9,11 @@ menu = PluginMenu(
                 link='plugins:netbox_demandsite:demandsite_list',
                 link_text='Sites List'
             ),
+            PluginMenuItem(
+                link='plugins:netbox_demandsite:demandsite_server',
+                link_text='Server'
+            ),
         )),
     )
 )
+
