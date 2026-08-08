@@ -74,7 +74,7 @@
         border-spacing: 0;
         width: 100%;
         font-size: 13px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif !important;
         background-color: #ffffff;
     }
     .premium-table th {
@@ -87,14 +87,15 @@
         padding: 10px 12px;
         border-bottom: 1px solid #e2e8f0;
         border-top: 1px solid #e2e8f0;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif !important;
     }
     .premium-table td {
         padding: 8px 12px;
         border-bottom: 1px solid #f1f5f9;
-        color: #1e293b;
+        color: #000000 !important;
         font-size: 13px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        font-weight: 500;
+        font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif !important;
     }
     
     .row-pair-even td {
@@ -362,12 +363,12 @@
                             <td><span class="source-api">Demand</span></td>
                             
                             <!-- Site ID -->
-                            <td class="font-monospace">
+                            <td class="font-monospace fw-bold" style="color: #000000;">
                                 {{ site.api_data.siteid }}
                             </td>
                             
                             <!-- Name -->
-                            <td>{{ site.api_data.sitename }}</td>
+                            <td class="fw-bold" style="color: #000000;">{{ site.api_data.sitename }}</td>
                             
                             <!-- Province -->
                             <td>{{ site.api_data.province }}</td>
@@ -459,9 +460,9 @@
                             <td><span class="source-netbox">NetBox</span></td>
                             
                             <!-- Site ID (Highlight if missing or mismatched) -->
-                            <td class="font-monospace {% if not site.netbox_site or site.siteid_diff %}cell-mismatch{% endif %}">
+                            <td class="font-monospace fw-bold {% if not site.netbox_site or site.siteid_diff %}cell-mismatch{% endif %}">
                                 {% if site.netbox_site %}
-                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="text-decoration-none" style="color: #2563eb;">
+                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="text-decoration-none fw-bold" style="color: #2563eb;">
                                         {{ site.netbox_site.name }} <i class="mdi mdi-open-in-new ms-1" style="font-size: 11px; color: #64748b;"></i>
                                     </a>
                                 {% else %}
@@ -470,7 +471,7 @@
                             </td>
                             
                             <!-- Name -->
-                            <td class="{% if site.name_diff %}cell-mismatch{% endif %}">
+                            <td class="{% if site.name_diff %}cell-mismatch{% endif %} fw-bold" style="color: #000000;">
                                 {% if site.netbox_site %}
                                     {{ site.nb_data.name }}
                                 {% else %}
