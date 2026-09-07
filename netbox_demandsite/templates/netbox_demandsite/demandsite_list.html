@@ -5,675 +5,425 @@
 
 {% block content %}
 
-<!-- Custom Styles for Premium UI Alignment (Matching Zabbix / NetBox Dashboard Style) -->
-<style>
-    .card-stat {
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        transition: all 0.2s ease;
-    }
-    .card-stat:hover {
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-    }
-    .stat-circle-icon {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 18px;
-        flex-shrink: 0;
-    }
-    .stat-title {
-        font-size: 11px;
-        font-weight: 700;
-        color: #64748b;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 2px;
-    }
-    .stat-number {
-        font-size: 22px;
-        font-weight: 800;
-        color: #0f172a;
-        line-height: 1.2;
-    }
-    .stat-subtext {
-        font-size: 11px;
-        color: #64748b;
-        margin-top: 2px;
-    }
-    
-    /* Active filter highlight borders */
-    .filter-active-total {
-        border: 2px solid #0f766e !important;
-        background-color: #ffffff !important;
-    }
-    .filter-active-matched {
-        border: 2px solid #2563eb !important;
-        background-color: #ffffff !important;
-    }
-    .filter-active-synced {
-        border: 2px solid #16a34a !important;
-        background-color: #ffffff !important;
-    }
-    .filter-active-not_in_netbox {
-        border: 2px solid #d97706 !important;
-        background-color: #ffffff !important;
-    }
-    .filter-active-mismatched {
-        border: 2px solid #dc2626 !important;
-        background-color: #ffffff !important;
-    }
+<!-- Flash Messages Notification Banner -->
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show mb-3" role="alert">
+            <i class="mdi mdi-information me-1"></i> {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endfor %}
+{% endif %}
 
-    /* Table Styles */
-    .premium-table {
-        border-collapse: separate;
-        border-spacing: 0;
-        width: 100%;
-        font-size: 13px !important;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
-        background-color: #ffffff;
-    }
-    .premium-table th {
-        background-color: #f8fafc;
-        color: #64748b;
-        font-weight: 700;
-        text-transform: uppercase;
-        font-size: 11px;
-        letter-spacing: 0.5px;
-        padding: 8px 10px;
-        border-bottom: 1px solid #e2e8f0;
-        border-top: 1px solid #e2e8f0;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
-    }
-    .premium-table td {
-        padding: 8px 10px;
-        border-bottom: none;
-        color: #0f172a;
-        font-size: 13px !important;
-        vertical-align: middle;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
-    }
-    
-    .row-demand-api td {
-        background-color: #ffffff !important;
-    }
-    .row-netbox-site td {
-        background-color: #f8fafc !important;
-    }
-    .row-border-bottom td {
-        border-bottom: 1px solid #e2e8f0 !important;
-    }
-    
-    .cell-mismatch {
-        color: #dc2626 !important;
-        font-weight: 600;
-        background-color: #fef2f2 !important;
-    }
-    
-    .source-api {
-        color: #0d9488;
-        font-weight: 700;
-        font-size: 11px;
-    }
-    .source-netbox {
-        color: #16a34a;
-        font-weight: 700;
-        font-size: 11px;
-    }
-    .dot-indicator {
-        font-size: 14px;
-        line-height: 1;
-        margin-right: 3px;
-    }
-
-    .badge-site-id {
-        font-family: var(--font-monospace, monospace);
-        font-weight: 700;
-        letter-spacing: 0.3px;
-        font-size: 11px;
-    }
-    .badge-tech {
-        font-size: 10px;
-        font-weight: 600;
-        padding: 2px 6px;
-        white-space: nowrap;
-        background-color: #e0f2fe;
-        color: #0284c7;
-        border: 1px solid #bae6fd;
-        border-radius: 4px;
-    }
-    
-    .badge-status-active {
-        background-color: #dcfce7;
-        color: #15803d;
-        border: 1px solid #86efac;
-        font-weight: 600;
-        font-size: 11px;
-        padding: 3px 8px;
-        border-radius: 6px;
-        display: inline-flex;
-        align-items: center;
-    }
-    .badge-status-planned {
-        background-color: #e0f2fe;
-        color: #0369a1;
-        border: 1px solid #7dd3fc;
-        font-weight: 600;
-        font-size: 11px;
-        padding: 3px 8px;
-        border-radius: 6px;
-        display: inline-flex;
-        align-items: center;
-    }
-    .badge-status-other {
-        background-color: #ffedd5;
-        color: #c2410c;
-        border: 1px solid #fed7aa;
-        font-weight: 600;
-        font-size: 11px;
-        padding: 3px 8px;
-        border-radius: 6px;
-        display: inline-flex;
-        align-items: center;
-    }
-
-    .btn-teal {
-        background-color: #0f766e;
-        color: #ffffff;
-        border: none;
-        font-weight: 600;
-    }
-    .btn-teal:hover {
-        background-color: #0d9488;
-        color: #ffffff;
-    }
-</style>
-
-<!-- Top Dashboard Cards (Zabbix/NetBox Alignment Style) -->
-<div class="row row-cols-1 row-cols-md-5 g-3 mb-3">
-    <!-- Card 1: Total Demand Sites -->
-    <div class="col">
-        <a href="?{% if q %}q={{ q }}{% endif %}" class="text-decoration-none" title="Click to view all sites">
-            <div class="card-stat p-3 h-100{% if not filter %} filter-active-total{% endif %}">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-circle-icon" style="background-color: #0f766e; color: #ffffff;">
-                        <i class="mdi mdi-menu"></i>
-                    </div>
-                    <div>
-                        <div class="stat-title">TOTAL DEMAND SITES</div>
-                        <div class="stat-number">{{ total_api_sites }}</div>
-                        <div class="stat-subtext">All sites fetched from Demand API</div>
-                    </div>
+<!-- Top Summary Cards (Exact Zabbix Host Page Metric Display) -->
+<div class="row mb-4">
+    <!-- 1. Total Demand Sites -->
+    <div class="col-md-2-4 col-sm-6 mb-2">
+        <a href="?{% if q %}q={{ q }}{% endif %}" class="card card-sm bg-body-tertiary text-decoration-none shadow-sm {% if not filter %}border border-primary border-2{% else %}border-0{% endif %}" title="Click to view all Demand sites">
+            <div class="card-body d-flex align-items-center p-3">
+                <div class="avatar bg-primary text-white p-3 rounded-circle me-3">
+                    <i class="mdi mdi-antenna fs-2"></i>
+                </div>
+                <div>
+                    <div class="fs-7 text-muted text-uppercase fw-semibold">Total Demand Sites</div>
+                    <div class="fs-2 fw-bold text-primary">{{ total_api_sites }}</div>
+                    <div class="fs-7 text-muted">All sites in Demand API</div>
                 </div>
             </div>
         </a>
     </div>
 
-    <!-- Card 2: Matched in NetBox -->
-    <div class="col">
-        <a href="?filter=matched{% if q %}&q={{ q }}{% endif %}" class="text-decoration-none" title="Click to filter matched sites">
-            <div class="card-stat p-3 h-100{% if filter == 'matched' %} filter-active-matched{% endif %}">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-circle-icon" style="background-color: #2563eb; color: #ffffff;">
-                        <i class="mdi mdi-link-variant"></i>
-                    </div>
-                    <div>
-                        <div class="stat-title" style="color: #2563eb;">MATCHED IN NETBOX</div>
-                        <div class="stat-number" style="color: #1d4ed8;">{{ total_matched }}</div>
-                        <div class="stat-subtext">Matched in NetBox (Click to filter)</div>
-                    </div>
+    <!-- 2. Matched in NetBox -->
+    <div class="col-md-2-4 col-sm-6 mb-2">
+        <a href="?filter=matched{% if q %}&q={{ q }}{% endif %}" class="card card-sm bg-body-tertiary text-decoration-none shadow-sm {% if filter == 'matched' %}border border-info border-2{% else %}border-0{% endif %}" title="Click to view matched sites">
+            <div class="card-body d-flex align-items-center p-3">
+                <div class="avatar bg-info text-white p-3 rounded-circle me-3">
+                    <i class="mdi mdi-link-variant fs-2"></i>
+                </div>
+                <div>
+                    <div class="fs-7 text-muted text-uppercase fw-semibold">Matched in NetBox</div>
+                    <div class="fs-2 fw-bold text-info">{{ total_matched }}</div>
+                    <div class="fs-7 text-muted">Site ID exists in NetBox</div>
                 </div>
             </div>
         </a>
     </div>
 
-    <!-- Card 3: Fully Synced Sites -->
-    <div class="col">
-        <a href="?filter=synced{% if q %}&q={{ q }}{% endif %}" class="text-decoration-none" title="Click to filter fully synced sites">
-            <div class="card-stat p-3 h-100{% if filter == 'synced' %} filter-active-synced{% endif %}">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-circle-icon" style="background-color: #16a34a; color: #ffffff;">
-                        <i class="mdi mdi-check-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-title" style="color: #16a34a;">FULLY SYNCED</div>
-                        <div class="stat-number" style="color: #15803d;">{{ total_synced }}</div>
-                        <div class="stat-subtext">Zero value mismatches (Click to filter)</div>
-                    </div>
+    <!-- 3. Fully Synced -->
+    <div class="col-md-2-4 col-sm-6 mb-2">
+        <a href="?filter=synced{% if q %}&q={{ q }}{% endif %}" class="card card-sm bg-body-tertiary text-decoration-none shadow-sm {% if filter == 'synced' %}border border-success border-2{% else %}border-0{% endif %}" title="Click to view fully synchronized sites">
+            <div class="card-body d-flex align-items-center p-3">
+                <div class="avatar bg-success text-white p-3 rounded-circle me-3">
+                    <i class="mdi mdi-check-circle fs-2"></i>
+                </div>
+                <div>
+                    <div class="fs-7 text-muted text-uppercase fw-semibold">Fully Synced</div>
+                    <div class="fs-2 fw-bold text-success">{{ total_synced }}</div>
+                    <div class="fs-7 text-muted">Zero field mismatches</div>
                 </div>
             </div>
         </a>
     </div>
 
-    <!-- Card 4: Not in NetBox -->
-    <div class="col">
-        <a href="?filter=not_in_netbox{% if q %}&q={{ q }}{% endif %}" class="text-decoration-none" title="Click to filter sites missing in NetBox">
-            <div class="card-stat p-3 h-100{% if filter == 'not_in_netbox' %} filter-active-not_in_netbox{% endif %}">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-circle-icon" style="background-color: #d97706; color: #ffffff;">
-                        <i class="mdi mdi-alert-circle-outline"></i>
-                    </div>
-                    <div>
-                        <div class="stat-title" style="color: #d97706;">NOT IN NETBOX</div>
-                        <div class="stat-number" style="color: #b45309;">{{ total_not_in_netbox }}</div>
-                        <div class="stat-subtext">Missing in NetBox (Click to filter)</div>
-                    </div>
+    <!-- 4. Not in NetBox -->
+    <div class="col-md-2-4 col-sm-6 mb-2">
+        <a href="?filter=not_in_netbox{% if q %}&q={{ q }}{% endif %}" class="card card-sm bg-body-tertiary text-decoration-none shadow-sm {% if filter == 'not_in_netbox' %}border border-warning border-2{% else %}border-0{% endif %}" title="Click to view sites missing in NetBox">
+            <div class="card-body d-flex align-items-center p-3">
+                <div class="avatar bg-warning text-dark p-3 rounded-circle me-3">
+                    <i class="mdi mdi-alert-circle fs-2"></i>
+                </div>
+                <div>
+                    <div class="fs-7 text-muted text-uppercase fw-semibold">Not in NetBox</div>
+                    <div class="fs-2 fw-bold text-warning">{{ total_not_in_netbox }}</div>
+                    <div class="fs-7 text-muted">Missing in NetBox</div>
                 </div>
             </div>
         </a>
     </div>
 
-    <!-- Card 5: Value Mismatches -->
-    <div class="col">
-        <a href="?filter=mismatched{% if q %}&q={{ q }}{% endif %}" class="text-decoration-none" title="Click to filter value mismatches">
-            <div class="card-stat p-3 h-100{% if filter == 'mismatched' %} filter-active-mismatched{% endif %}">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-circle-icon" style="background-color: #dc2626; color: #ffffff;">
-                        <i class="mdi mdi-alert-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-title" style="color: #dc2626;">VALUE MISMATCHES</div>
-                        <div class="stat-number" style="color: #b91c1c;">{{ total_mismatch }}</div>
-                        <div class="stat-subtext">Value mismatch (Click to filter)</div>
-                    </div>
+    <!-- 5. Value Mismatch -->
+    <div class="col-md-2-4 col-sm-6 mb-2">
+        <a href="?filter=mismatched{% if q %}&q={{ q }}{% endif %}" class="card card-sm bg-body-tertiary text-decoration-none shadow-sm {% if filter == 'mismatched' %}border border-danger border-2{% else %}border-0{% endif %}" title="Click to view sites with parameter value mismatches">
+            <div class="card-body d-flex align-items-center p-3">
+                <div class="avatar bg-danger text-white p-3 rounded-circle me-3">
+                    <i class="mdi mdi-close-circle fs-2"></i>
+                </div>
+                <div>
+                    <div class="fs-7 text-muted text-uppercase fw-semibold">Value Mismatch</div>
+                    <div class="fs-2 fw-bold text-danger">{{ total_mismatch }}</div>
+                    <div class="fs-7 text-muted">Attribute mismatch</div>
                 </div>
             </div>
         </a>
     </div>
 </div>
 
-<!-- Filter & Actions Control Bar -->
-<div class="card border-0 shadow-sm mb-3" style="border-radius: 8px; background-color: #ffffff; border: 1px solid #e2e8f0 !important;">
-    <div class="card-body p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <!-- Search & Filter Controls -->
-        <div class="d-flex align-items-center gap-2 flex-wrap" style="flex: 1;">
-            <span class="fw-bold text-secondary" style="font-size: 13px;">Search Sites:</span>
-            <form method="get" action="" class="d-flex mb-0 gap-2" style="max-width: 420px; width: 100%;">
-                {% if filter %}
-                    <input type="hidden" name="filter" value="{{ filter }}">
-                {% endif %}
-                <div class="input-group">
-                    <span class="input-group-text bg-white text-muted border-end-0"><i class="mdi mdi-magnify"></i></span>
-                    <input type="text" name="q" class="form-control border-start-0 ps-0" placeholder="Type keyword to filter..." value="{{ q }}" style="font-size: 13px;">
+<!-- Custom CSS for 5-column grid layout on medium+ screens -->
+<style>
+    @media (min-width: 768px) {
+        .col-md-2-4 {
+            flex: 0 0 auto;
+            width: 20%;
+        }
+    }
+</style>
+
+<!-- Search & Filter Bar (Matching Zabbix Plugin Design) -->
+<div class="card mb-3 shadow-sm border-0">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-center mb-0">
+            {% if filter %}
+                <input type="hidden" name="filter" value="{{ filter }}" />
+            {% endif %}
+            <div class="col-auto">
+                <label for="search-input" class="fw-semibold text-muted col-form-label fs-7">Search Sites:</label>
+            </div>
+            <div class="col-auto flex-grow-1" style="max-width: 420px;">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="mdi mdi-magnify"></i></span>
+                    <input type="text" id="search-input" name="q" class="form-control form-control-sm" placeholder="Type keyword to filter..." value="{{ q }}">
                     {% if q %}
-                        <a href="?{% if filter %}filter={{ filter }}{% endif %}" class="btn btn-outline-secondary border-start-0" title="Clear Search">
+                        <a href="?{% if filter %}filter={{ filter }}{% endif %}" class="btn btn-sm btn-outline-secondary" title="Clear Search">
                             <i class="mdi mdi-close"></i>
                         </a>
                     {% endif %}
                 </div>
-                <button class="btn btn-teal px-3 d-flex align-items-center" type="submit">
-                    Filter
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-primary fw-semibold px-3">Filter</button>
+                {% if q or filter %}
+                    <a href="?" class="btn btn-sm btn-outline-secondary ms-1">Reset Filters</a>
+                {% endif %}
+                <button type="button" id="sync-selected-btn" class="btn btn-sm btn-success fw-bold text-white ms-2 px-3" onclick="submitBulkSync()" disabled title="Sync selected sites to NetBox">
+                    <i class="mdi mdi-sync me-1"></i> Sync Selected (<span id="selected-count">0</span>)
                 </button>
-            </form>
-
-            <button type="button" id="btn-sync-selected" class="btn btn-success d-flex align-items-center fw-semibold px-3" style="height: 38px;">
-                <i class="mdi mdi-sync me-1"></i> Sync Selected
-            </button>
-        </div>
-
-        <!-- Filter State Badge Indicator -->
-        <div class="d-flex align-items-center">
-            <span class="badge bg-light text-dark border px-3 py-2 fw-semibold" style="font-size: 12px; border-color: #cbd5e1 !important;">
-                <i class="mdi mdi-filter-variant me-1 text-teal" style="color: #0f766e;"></i>
-                Showing {% if filter == 'matched' %}Matched Sites{% elif filter == 'synced' %}Synced Sites{% elif filter == 'not_in_netbox' %}Missing Sites{% elif filter == 'mismatched' %}Mismatched Sites{% else %}All Demand Sites{% endif %}
-            </span>
-        </div>
+            </div>
+            <div class="col-auto ms-auto">
+                <span class="badge bg-light text-dark border px-3 py-2 fs-7 fw-semibold">
+                    <i class="mdi mdi-filter-check me-1 text-primary"></i>
+                    Showing {% if filter == 'matched' %}Matched Sites{% elif filter == 'synced' %}Synced Sites{% elif filter == 'not_in_netbox' %}Missing Sites{% elif filter == 'mismatched' %}Mismatched Sites{% else %}All Demand Sites{% endif %}
+                </span>
+            </div>
+        </form>
     </div>
 </div>
 
-<!-- Main Twin-Row Comparison Table -->
-<div class="card shadow-sm border-0" style="border-radius: 8px; border: 1px solid #e2e8f0 !important;">
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="premium-table">
+<!-- Table Card (Exact Zabbix Host Table Layout, Classes, and Typography) -->
+<div class="card shadow-sm border-0">
+    <div class="table-responsive">
+        <form id="bulk-sync-form" action="" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="sync_selected">
+            {% if filter %}
+                <input type="hidden" name="filter" value="{{ filter }}">
+            {% endif %}
+            {% if q %}
+                <input type="hidden" name="q" value="{{ q }}">
+            {% endif %}
+            <input type="hidden" name="page" value="{{ correlated_sites.number }}">
+
+            <table class="table align-middle mb-0">
                 <thead>
-                    <tr>
-                        <th style="width: 3%; text-align: center;"><input type="checkbox" id="select-all-sites" style="cursor: pointer;"></th>
-                        <th style="width: 7%;">SOURCE</th>
-                        <th style="width: 8%;">SITEID</th>
-                        <th style="width: 14%;">SITENAME/SITENAME2</th>
-                        <th style="width: 12%;">PROVINCE / DISTRICT</th>
-                        <th style="width: 18%;">LOCAL LEVEL</th>
-                        <th style="width: 12%;">COORDINATES</th>
-                        <th style="width: 7%;">STATUS</th>
-                        <th style="width: 11%;">TECHNOLOGY</th>
-                        <th class="text-center" style="width: 8%;">MATCH STATUS</th>
+                    <tr class="bg-body-tertiary text-uppercase fs-7 text-muted border-bottom">
+                        <th style="width: 40px;" class="text-center">
+                            <input type="checkbox" id="select-all-sites" class="form-check-input" onclick="toggleSelectAll(this)" title="Select All on this page">
+                        </th>
+                        <th style="width: 90px;">Source</th>
+                        <th style="width: 100px;">Site ID</th>
+                        <th>Sitename / Sitename2</th>
+                        <th>Province / District</th>
+                        <th>Local Level</th>
+                        <th>Coordinates</th>
+                        <th>Status</th>
+                        <th>Technology</th>
+                        <th class="text-end" style="width: 140px;">Match Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for site in correlated_sites %}
-                        <!-- Row 1: Netbox (White Background) -->
-                        <tr class="row-netbox-site">
-                            <!-- Checkbox spanning both rows -->
-                            <td rowspan="2" class="text-center bg-white border-start border-end" style="vertical-align: middle;">
-                                <input type="checkbox" class="site-checkbox" value="{{ site.api_data.siteid }}" style="cursor: pointer;">
+                        <!-- ROW 1: NETBOX SITE DATA -->
+                        <tr class="bg-white border-top border-2 border-light-subtle">
+                            <td class="align-middle text-center" rowspan="2">
+                                <input type="checkbox" name="selected_siteids" value="{{ site.api_data.siteid }}" class="form-check-input site-checkbox" onchange="updateSelectedCount()">
                             </td>
-                            
-                            <!-- NetBox Source -->
-                            <td><span class="source-netbox"><span class="dot-indicator">•</span> NetBox</span></td>
-                            
-                            <!-- Site ID -->
-                            <td class="font-monospace {% if not site.netbox_site or site.siteid_diff %}cell-mismatch{% endif %}">
+                            <td class="align-middle fw-bold text-success" style="font-size: 0.85rem;">
+                                <i class="mdi mdi-circle-medium text-success me-1"></i>NetBox
+                            </td>
+                            <td class="align-middle">
                                 {% if site.netbox_site %}
-                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="text-decoration-none" style="color: #2563eb;">
-                                        {{ site.netbox_site.name }} <i class="mdi mdi-open-in-new ms-1" style="font-size: 11px; color: #64748b;"></i>
+                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="text-decoration-none fw-bold" style="color: #2563eb;">
+                                        <code class="fw-bold fs-7">{{ site.netbox_site.name }}</code> <i class="mdi mdi-open-in-new ms-1 small text-muted"></i>
                                     </a>
                                 {% else %}
-                                    —
+                                    <span class="text-muted small">&mdash;</span>
                                 {% endif %}
                             </td>
-                            
-                            <!-- Name -->
-                            <td class="{% if site.name_diff %}cell-mismatch{% endif %}">
+                            <td class="align-middle fw-bold text-dark" style="font-size: 1.05rem;">
                                 {% if site.netbox_site %}
                                     {{ site.nb_data.name }}
                                 {% else %}
-                                    —
+                                    <span class="text-muted small">&mdash;</span>
                                 {% endif %}
                             </td>
-                            
-                            <!-- Province / District (2 lines) -->
-                            <td class="{% if site.region_diff or site.district_diff %}cell-mismatch{% endif %}">
+                            <td class="align-middle">
                                 <div>{{ site.nb_data.region }}</div>
-                                <div class="text-muted small" style="font-size: 11px; line-height: 1.2;">{{ site.nb_data.district }}</div>
+                                <div class="text-muted small" style="font-size: 0.78rem;">{{ site.nb_data.district }}</div>
                             </td>
-                            
-                            <!-- Local Level (3 lines: Name, Type, Ward) -->
-                            <td class="{% if site.palika_diff or site.local_level_diff or site.ward_diff %}cell-mismatch{% endif %}">
-                                <div style="font-weight: 500;">{{ site.nb_data.local_level_name }}</div>
-                                <div class="text-muted small" style="font-size: 11px; line-height: 1.2;">{{ site.nb_data.local_level }}</div>
+                            <td class="align-middle">
+                                <div class="fw-semibold">{{ site.nb_data.local_level_name }}</div>
+                                <div class="text-muted small" style="font-size: 0.78rem;">{{ site.nb_data.local_level }}</div>
                                 {% if site.nb_data.ward and site.nb_data.ward != '—' %}
-                                    <div class="text-secondary small" style="font-size: 10px; line-height: 1.1;">Ward No: {{ site.nb_data.ward }}</div>
+                                    <div class="text-secondary small" style="font-size: 0.72rem;">Ward No: {{ site.nb_data.ward }}</div>
                                 {% endif %}
                             </td>
-                            
-                            <!-- Coordinates (2 lines: Lat, Long) -->
-                            <td class="font-monospace text-muted {% if site.lat_diff or site.lon_diff %}cell-mismatch{% endif %}" style="font-size: 11px;">
-                                <div>Lat: {{ site.nb_data.latitude }}</div>
-                                <div>Long: {{ site.nb_data.longitude }}</div>
+                            <td class="align-middle">
+                                <code class="fw-bold fs-7 d-block">Lat: {{ site.nb_data.latitude }}</code>
+                                <code class="fw-bold fs-7 d-block">Long: {{ site.nb_data.longitude }}</code>
                             </td>
-                            
-                            <!-- Status -->
-                            <td class="{% if site.status_diff %}cell-mismatch{% endif %}">
+                            <td class="align-middle">
                                 {% if site.netbox_site %}
                                     {% if site.nb_data.status == 'Active' or site.nb_data.status == 'active' %}
-                                        <span class="badge-status-active"><i class="mdi mdi-check-circle-outline me-1"></i> Active</span>
+                                        <span class="badge bg-success-subtle text-dark border border-success-subtle fw-semibold px-2 py-1" style="font-size: 0.78rem;">
+                                            <i class="mdi mdi-check-circle-outline me-1"></i>Active
+                                        </span>
                                     {% elif site.nb_data.status == 'Planned' or site.nb_data.status == 'planned' %}
-                                        <span class="badge-status-planned"><i class="mdi mdi-clock-outline me-1"></i> Planned</span>
-                                    {% elif site.nb_data.status == 'Decommissioning' or site.nb_data.status == 'decommissioning' %}
-                                        <span class="badge-status-other">Decommissioning</span>
+                                        <span class="badge bg-secondary-subtle text-dark border border-secondary-subtle fw-semibold px-2 py-1" style="font-size: 0.78rem;">
+                                            <i class="mdi mdi-clock-outline me-1"></i>Planned
+                                        </span>
                                     {% else %}
-                                        <span class="badge bg-secondary badge-status">{{ site.nb_data.status }}</span>
+                                        <span class="badge bg-warning-subtle text-dark border border-warning-subtle fw-semibold px-2 py-1" style="font-size: 0.78rem;">{{ site.nb_data.status }}</span>
                                     {% endif %}
                                 {% else %}
-                                    —
+                                    <span class="text-muted small">&mdash;</span>
                                 {% endif %}
                             </td>
-                            
-                            <!-- NetBox Devices -->
-                            <td class="{% if site.tech_diff %}cell-mismatch{% endif %}">
+                            <td class="align-middle">
                                 {% if site.nb_data.devices %}
-                                    <div class="d-flex flex-column gap-1" style="min-width: 120px;">
+                                    <div class="d-flex flex-column gap-1 align-items-start">
                                         {% for dev in site.nb_data.devices %}
                                             {% if dev.status == 'active' %}
-                                                <span class="badge badge-tech text-nowrap" style="background-color:#dcfce7;color:#166534;border:1px solid #86efac;">
-                                                    <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#16a34a;margin-right:4px;vertical-align:middle;"></span>{{ dev.name }}
+                                                <span class="badge bg-success-subtle text-dark border border-success-subtle fw-normal d-inline-flex align-items-center gap-1 shadow-sm" style="font-size: 0.78rem; padding: 3px 8px; border-radius: 4px;">
+                                                    <i class="mdi mdi-cellphone-link text-success me-1"></i> {{ dev.name }}
                                                 </span>
                                             {% else %}
-                                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle badge-tech text-nowrap">{{ dev.name }}</span>
+                                                <span class="badge bg-light text-dark border fw-normal d-inline-flex align-items-center gap-1 shadow-sm" style="font-size: 0.78rem; padding: 3px 8px; border-radius: 4px;">
+                                                    {{ dev.name }}
+                                                </span>
                                             {% endif %}
                                         {% endfor %}
                                     </div>
                                 {% else %}
-                                    <span class="text-muted small">—</span>
+                                    <span class="text-muted small">&mdash;</span>
                                 {% endif %}
                             </td>
-                            
-                            <!-- Action / Match status column spanning both rows -->
-                            <td rowspan="2" class="text-center bg-white border-start border-end" style="vertical-align: middle;">
-                                {% if site.netbox_site %}
-                                    {% if site.needs_sync %}
-                                        <form method="post" action="">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="action" value="sync_single">
-                                            <input type="hidden" name="siteid" value="{{ site.api_data.siteid }}">
-                                            <input type="hidden" name="page" value="{{ correlated_sites.number }}">
-                                            <input type="hidden" name="q" value="{{ q }}">
-                                            {% if filter %}
-                                                <input type="hidden" name="filter" value="{{ filter }}">
-                                            {% endif %}
-                                            <button type="submit" class="btn btn-sm w-100" style="background-color: #fef3c7; color: #b45309; border: 1px solid #fde68a; border-radius: 6px; font-weight: 700; padding: 6px 10px;" title="Sync fields to NetBox">
-                                                <i class="mdi mdi-sync me-1"></i> Sync
+
+                            <!-- MATCH STATUS & ACTION: COMBINED ACROSS 2 ROWS (Exact Zabbix Plugin Design) -->
+                            <td rowspan="2" class="align-middle text-end border-start bg-body-tertiary">
+                                <div class="d-flex flex-column align-items-end gap-2 p-1">
+                                    {% if site.netbox_site %}
+                                        {% if site.needs_sync %}
+                                            <span class="badge bg-warning-subtle text-dark border border-warning-subtle fw-bold w-100 p-2" style="font-size: 0.8rem;">
+                                                <i class="mdi mdi-alert-circle me-1"></i> Value Mismatch
+                                            </span>
+                                            <button type="submit" name="action" value="sync_single" onclick="this.form.siteid.value='{{ site.api_data.siteid }}'" class="btn btn-sm btn-success fw-bold text-white w-100 py-1" style="font-size: 0.78rem;" title="Sync fields to NetBox">
+                                                <i class="mdi mdi-sync me-1"></i> Sync to NetBox
                                             </button>
-                                        </form>
-                                    {% else %}
-                                        <span class="badge w-100" style="background-color: #dcfce7; color: #15803d; border: 1px solid #86efac; border-radius: 6px; padding: 6px 10px; font-size: 11px; font-weight: 700;" title="Synchronized">
-                                            <i class="mdi mdi-check-circle me-1"></i> Matched
-                                        </span>
-                                    {% endif %}
-                                {% else %}
-                                    <form method="post" action="">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="action" value="sync_single">
-                                        <input type="hidden" name="siteid" value="{{ site.api_data.siteid }}">
-                                        <input type="hidden" name="page" value="{{ correlated_sites.number }}">
-                                        <input type="hidden" name="q" value="{{ q }}">
-                                        {% if filter %}
-                                            <input type="hidden" name="filter" value="{{ filter }}">
+                                        {% else %}
+                                            <span class="badge bg-success-subtle text-dark border border-success-subtle fw-bold w-100 p-2" style="font-size: 0.8rem;">
+                                                <i class="mdi mdi-check-circle me-1"></i> Matched
+                                            </span>
                                         {% endif %}
-                                        <button type="submit" class="btn btn-sm btn-teal w-100" style="border-radius: 6px; font-weight: 700; padding: 6px 10px;" title="Add and Sync site to NetBox">
+                                    {% else %}
+                                        <span class="badge bg-danger-subtle text-dark border border-danger-subtle fw-bold w-100 p-2" style="font-size: 0.8rem;">
+                                            <i class="mdi mdi-close-circle me-1"></i> Not in NetBox
+                                        </span>
+                                        <button type="submit" name="action" value="sync_single" onclick="this.form.siteid.value='{{ site.api_data.siteid }}'" class="btn btn-sm btn-success fw-bold text-white w-100 py-1" style="font-size: 0.78rem;" title="Add and Sync site to NetBox">
                                             <i class="mdi mdi-plus-circle me-1"></i> Add & Sync
                                         </button>
-                                    </form>
-                                {% endif %}
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
 
-                        <!-- Row 2: Demand API (Light Gray Background) -->
-                        <tr class="row-demand-api row-border-bottom">
-                            <!-- API Row Source -->
-                            <td><span class="source-api"><span class="dot-indicator">•</span> Demand</span></td>
-                            
-                            <!-- Site ID -->
-                            <td class="font-monospace">
-                                {{ site.api_data.siteid }}
+                        <!-- ROW 2: DEMAND API DATA -->
+                        <tr class="bg-body-tertiary border-top border-light-subtle border-bottom border-2 border-light-subtle">
+                            <td class="align-middle fw-bold text-primary" style="font-size: 0.85rem;">
+                                <i class="mdi mdi-circle-medium text-primary me-1"></i>Demand
                             </td>
-                            
-                            <!-- Name -->
-                            <td>{{ site.api_data.sitename }}</td>
-                            
-                            <!-- Province / District (2 lines) -->
-                            <td>
+                            <td class="align-middle">
+                                <code class="fw-bold fs-7">{{ site.api_data.siteid }}</code>
+                            </td>
+                            <td class="align-middle fw-bold text-dark fs-7">
+                                {{ site.api_data.sitename }}
+                            </td>
+                            <td class="align-middle">
                                 <div>{{ site.api_data.province }}</div>
-                                <div class="text-muted small" style="font-size: 11px; line-height: 1.2;">{{ site.api_data.district }}</div>
+                                <div class="text-muted small" style="font-size: 0.78rem;">{{ site.api_data.district }}</div>
                             </td>
-                            
-                            <!-- Local Level (3 lines: Name, Type, Ward) -->
-                            <td>
-                                <div style="font-weight: 500;">{{ site.api_data.palika }}</div>
-                                <div class="text-muted small" style="font-size: 11px; line-height: 1.2;">{{ site.api_data.palika_type }}</div>
+                            <td class="align-middle">
+                                <div class="fw-semibold">{{ site.api_data.palika }}</div>
+                                <div class="text-muted small" style="font-size: 0.78rem;">{{ site.api_data.palika_type }}</div>
                                 {% if site.api_data.wardno and site.api_data.wardno != '—' %}
-                                    <div class="text-secondary small" style="font-size: 10px; line-height: 1.1;">Ward No: {{ site.api_data.wardno }}</div>
+                                    <div class="text-secondary small" style="font-size: 0.72rem;">Ward No: {{ site.api_data.wardno }}</div>
                                 {% endif %}
                             </td>
-                            
-                            <!-- Coordinates (2 lines: Lat, Long) -->
-                            <td class="font-monospace text-muted" style="font-size: 11px;">
-                                <div>Lat: {{ site.api_data.latitude }}</div>
-                                <div>Long: {{ site.api_data.longitude }}</div>
+                            <td class="align-middle">
+                                <code class="fw-bold fs-7 d-block">Lat: {{ site.api_data.latitude }}</code>
+                                <code class="fw-bold fs-7 d-block">Long: {{ site.api_data.longitude }}</code>
                             </td>
-                            
-                            <!-- Status -->
-                            <td>
+                            <td class="align-middle">
                                 {% if site.api_data.status == 'Operational' %}
-                                    <span class="badge-status-active"><i class="mdi mdi-check-circle-outline me-1"></i> Operational</span>
+                                    <span class="badge bg-success-subtle text-dark border border-success-subtle fw-semibold px-2 py-1" style="font-size: 0.78rem;">
+                                        <i class="mdi mdi-check-circle-outline me-1"></i>Operational
+                                    </span>
                                 {% else %}
-                                    <span class="badge-status-planned"><i class="mdi mdi-clock-outline me-1"></i> {{ site.api_data.status }}</span>
+                                    <span class="badge bg-secondary-subtle text-dark border border-secondary-subtle fw-semibold px-2 py-1" style="font-size: 0.78rem;">
+                                        <i class="mdi mdi-clock-outline me-1"></i>{{ site.api_data.status }}
+                                    </span>
                                 {% endif %}
                             </td>
-                            
-                            <td>
+                            <td class="align-middle">
                                 {% if site.api_data.technologies %}
-                                    <div class="d-flex flex-wrap gap-1" style="max-width: 140px;">
+                                    <div class="d-flex flex-wrap gap-1">
                                         {% for tech in site.api_data.technologies %}
-                                            <span class="badge-tech">{{ tech }}</span>
+                                            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-semibold" style="font-size: 0.75rem;">
+                                                {{ tech }}
+                                            </span>
                                         {% endfor %}
                                     </div>
                                 {% else %}
-                                    <span class="text-muted small">—</span>
+                                    <span class="text-muted small">&mdash;</span>
                                 {% endif %}
                             </td>
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="10" class="text-center py-4 text-muted">
-                                <i class="mdi mdi-alert-circle-outline display-6"></i>
-                                <p class="mt-2 mb-0">No matching site correlation records found.</p>
+                            <td colspan="10" class="text-center py-5 text-muted">
+                                <i class="mdi mdi-information-outline fs-3 d-block mb-1"></i>
+                                No sites found matching your search criteria.
                             </td>
                         </tr>
                     {% endfor %}
                 </tbody>
             </table>
-        </div>
-
-        <!-- Pagination Controls -->
-        {% if paginator.num_pages > 1 %}
-        <div class="d-flex justify-content-between align-items-center px-4 py-3 bg-light border-top flex-wrap gap-2">
-            <span class="text-muted small fw-semibold">
-                Showing {{ correlated_sites.start_index }}–{{ correlated_sites.end_index }} of {{ total_filtered_sites }} sites
-            </span>
-            <nav>
-                <ul class="pagination pagination-sm mb-0">
-                    {% if correlated_sites.has_previous %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page=1{% if q %}&q={{ q }}{% endif %}{% if filter %}&filter={{ filter }}{% endif %}">&laquo; First</a>
-                        </li>
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ correlated_sites.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if filter %}&filter={{ filter }}{% endif %}">Previous</a>
-                        </li>
-                    {% else %}
-                        <li class="page-item disabled"><span class="page-link">&laquo; First</span></li>
-                        <li class="page-item disabled"><span class="page-link">Previous</span></li>
-                    {% endif %}
-
-                    {% for num in paginator.page_range %}
-                        {% if num == correlated_sites.number %}
-                            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
-                        {% elif num > correlated_sites.number|add:-3 and num < correlated_sites.number|add:3 %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ num }}{% if q %}&q={{ q }}{% endif %}{% if filter %}&filter={{ filter }}{% endif %}">{{ num }}</a>
-                            </li>
-                        {% endif %}
-                    {% endfor %}
-
-                    {% if correlated_sites.has_next %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ correlated_sites.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if filter %}&filter={{ filter }}{% endif %}">Next</a>
-                        </li>
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ paginator.num_pages }}{% if q %}&q={{ q }}{% endif %}{% if filter %}&filter={{ filter }}{% endif %}">Last &raquo;</a>
-                        </li>
-                    {% else %}
-                        <li class="page-item disabled"><span class="page-link">Next</span></li>
-                        <li class="page-item disabled"><span class="page-link">Last &raquo;</span></li>
-                    {% endif %}
-                </ul>
-            </nav>
-        </div>
-        {% endif %}
-
+            <!-- Hidden single siteid field for single sync buttons -->
+            <input type="hidden" name="siteid" value="" />
+        </form>
     </div>
+
+    <!-- Pagination Controls Footer (Matching Zabbix Plugin Design) -->
+    {% if total_filtered_sites > 0 %}
+        <div class="card-footer d-flex justify-content-between align-items-center py-2 flex-wrap bg-white">
+            <div class="text-muted fs-7">
+                Showing {{ correlated_sites.start_index }} to {{ correlated_sites.end_index }} of {{ total_filtered_sites }} sites
+            </div>
+
+            {% if paginator.num_pages > 1 %}
+                <nav aria-label="Table pagination">
+                    <ul class="pagination pagination-sm mb-0">
+                        {% if correlated_sites.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1{% if filter %}&filter={{ filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}">First</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ correlated_sites.previous_page_number }}{% if filter %}&filter={{ filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}">Previous</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                        {% endif %}
+
+                        <li class="page-item active">
+                            <span class="page-link">Page {{ correlated_sites.number }} of {{ paginator.num_pages }}</span>
+                        </li>
+
+                        {% if correlated_sites.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ correlated_sites.next_page_number }}{% if filter %}&filter={{ filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}">Next</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ paginator.num_pages }}{% if filter %}&filter={{ filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}">Last</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">Next</span></li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        </div>
+    {% endif %}
 </div>
-{% endblock %}
 
-{% block javascript %}
+<!-- JavaScript for Checkbox Bulk Selection & Count -->
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const selectAllCheckbox = document.getElementById('select-all-sites');
-        const siteCheckboxes = document.querySelectorAll('.site-checkbox');
-        const btnSyncSelected = document.getElementById('btn-sync-selected');
+    function toggleSelectAll(master) {
+        const checkboxes = document.querySelectorAll('.site-checkbox');
+        checkboxes.forEach(cb => {
+            cb.checked = master.checked;
+        });
+        updateSelectedCount();
+    }
 
-        // Select/Deselect All Checkboxes
-        if (selectAllCheckbox) {
-            selectAllCheckbox.addEventListener('change', function() {
-                siteCheckboxes.forEach(cb => {
-                    cb.checked = selectAllCheckbox.checked;
-                });
-            });
+    function updateSelectedCount() {
+        const selected = document.querySelectorAll('.site-checkbox:checked').length;
+        const countSpan = document.getElementById('selected-count');
+        const syncBtn = document.getElementById('sync-selected-btn');
+        
+        if (countSpan) {
+            countSpan.textContent = selected;
         }
-
-        // Handle Sync Selected Button Click
-        if (btnSyncSelected) {
-            btnSyncSelected.addEventListener('click', function() {
-                const selectedIds = [];
-                siteCheckboxes.forEach(cb => {
-                    if (cb.checked) {
-                        selectedIds.push(cb.value);
-                    }
-                });
-
-                if (selectedIds.length === 0) {
-                    alert('Please select at least one site to synchronize.');
-                    return;
-                }
-
-                if (confirm(`Are you sure you want to synchronize the ${selectedIds.length} selected sites?`)) {
-                    // Create dynamic form to submit post request
-                    const form = document.createElement('form');
-                    form.method = 'POST';
-                    form.action = '';
-
-                    // Add CSRF Token
-                    const csrfInput = document.createElement('input');
-                    csrfInput.type = 'hidden';
-                    csrfInput.name = 'csrfmiddlewaretoken';
-                    csrfInput.value = '{{ csrf_token }}';
-                    form.appendChild(csrfInput);
-
-                    // Add Action
-                    const actionInput = document.createElement('input');
-                    actionInput.type = 'hidden';
-                    actionInput.name = 'action';
-                    actionInput.value = 'sync_selected';
-                    form.appendChild(actionInput);
-
-                    // Add Redirect Parameters
-                    const pageInput = document.createElement('input');
-                    pageInput.type = 'hidden';
-                    pageInput.name = 'page';
-                    pageInput.value = '{{ correlated_sites.number }}';
-                    form.appendChild(pageInput);
-
-                    const qInput = document.createElement('input');
-                    qInput.type = 'hidden';
-                    qInput.name = 'q';
-                    qInput.value = '{{ q }}';
-                    form.appendChild(qInput);
-
-                    const filterInput = document.createElement('input');
-                    filterInput.type = 'hidden';
-                    filterInput.name = 'filter';
-                    filterInput.value = '{{ filter }}';
-                    form.appendChild(filterInput);
-
-                    // Add Selected IDs
-                    selectedIds.forEach(id => {
-                        const idInput = document.createElement('input');
-                        idInput.type = 'hidden';
-                        idInput.name = 'selected_siteids';
-                        idInput.value = id;
-                        form.appendChild(idInput);
-                    });
-
-                    document.body.appendChild(form);
-                    form.submit();
-                }
-            });
+        if (syncBtn) {
+            syncBtn.disabled = (selected === 0);
         }
-    });
+    }
+
+    function submitBulkSync() {
+        const selected = document.querySelectorAll('.site-checkbox:checked').length;
+        if (selected === 0) {
+            alert('Please select at least one site to sync.');
+            return;
+        }
+        document.getElementById('bulk-sync-form').submit();
+    }
 </script>
+
 {% endblock %}
