@@ -191,34 +191,38 @@
                             </td>
                             <td class="align-middle">
                                 {% if site.netbox_site %}
-                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="text-decoration-none fw-bold" style="color: #2563eb;">
-                                        <code class="fw-bold fs-7">{{ site.netbox_site.name }}</code> <i class="mdi mdi-open-in-new ms-1 small text-muted"></i>
+                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="text-decoration-none fw-bold" style="color: #2563eb; font-size: 0.85rem;">
+                                        <code>{{ site.netbox_site.name }}</code> <i class="mdi mdi-open-in-new ms-1 small text-muted"></i>
                                     </a>
                                 {% else %}
                                     <span class="text-muted small">&mdash;</span>
                                 {% endif %}
                             </td>
-                            <td class="align-middle fw-bold text-dark" style="font-size: 1.05rem;">
+                            <td class="align-middle fw-semibold text-dark" style="font-size: 0.85rem;">
                                 {% if site.netbox_site %}
                                     {{ site.nb_data.name }}
                                 {% else %}
                                     <span class="text-muted small">&mdash;</span>
                                 {% endif %}
                             </td>
-                            <td class="align-middle">
+                            <td class="align-middle" style="font-size: 0.85rem;">
                                 <div>{{ site.nb_data.region }}</div>
-                                <div class="text-muted small" style="font-size: 0.78rem;">{{ site.nb_data.district }}</div>
+                                <div class="text-muted" style="font-size: 0.82rem;">{{ site.nb_data.district }}</div>
                             </td>
-                            <td class="align-middle">
+                            <td class="align-middle" style="font-size: 0.85rem;">
                                 <div class="fw-semibold">{{ site.nb_data.local_level_name }}</div>
-                                <div class="text-muted small" style="font-size: 0.78rem;">{{ site.nb_data.local_level }}</div>
+                                <div class="text-muted" style="font-size: 0.82rem;">{{ site.nb_data.local_level }}</div>
                                 {% if site.nb_data.ward and site.nb_data.ward != '—' %}
-                                    <div class="text-secondary small" style="font-size: 0.72rem;">Ward No: {{ site.nb_data.ward }}</div>
+                                    <div class="text-secondary" style="font-size: 0.80rem;">Ward No: {{ site.nb_data.ward }}</div>
                                 {% endif %}
                             </td>
                             <td class="align-middle">
-                                <code class="fw-bold fs-7 d-block">Lat: {{ site.nb_data.latitude }}</code>
-                                <code class="fw-bold fs-7 d-block">Long: {{ site.nb_data.longitude }}</code>
+                                <div class="text-nowrap" style="font-size: 0.82rem; font-family: var(--font-monospace, monospace);">
+                                    <span class="text-muted me-1">Lat:</span>{{ site.nb_data.latitude }}
+                                </div>
+                                <div class="text-nowrap" style="font-size: 0.82rem; font-family: var(--font-monospace, monospace);">
+                                    <span class="text-muted me-1">Long:</span>{{ site.nb_data.longitude }}
+                                </div>
                             </td>
                             <td class="align-middle">
                                 {% if site.netbox_site %}
@@ -290,26 +294,30 @@
                             <td class="align-middle fw-bold text-primary" style="font-size: 0.85rem;">
                                 <i class="mdi mdi-circle-medium text-primary me-1"></i>Demand
                             </td>
-                            <td class="align-middle">
-                                <code class="fw-bold fs-7">{{ site.api_data.siteid }}</code>
+                            <td class="align-middle" style="font-size: 0.85rem;">
+                                <code style="font-size: 0.85rem;">{{ site.api_data.siteid }}</code>
                             </td>
-                            <td class="align-middle fw-bold text-dark fs-7">
+                            <td class="align-middle fw-semibold text-dark" style="font-size: 0.85rem;">
                                 {{ site.api_data.sitename }}
                             </td>
-                            <td class="align-middle">
+                            <td class="align-middle" style="font-size: 0.85rem;">
                                 <div>{{ site.api_data.province }}</div>
-                                <div class="text-muted small" style="font-size: 0.78rem;">{{ site.api_data.district }}</div>
+                                <div class="text-muted" style="font-size: 0.82rem;">{{ site.api_data.district }}</div>
                             </td>
-                            <td class="align-middle">
+                            <td class="align-middle" style="font-size: 0.85rem;">
                                 <div class="fw-semibold">{{ site.api_data.palika }}</div>
-                                <div class="text-muted small" style="font-size: 0.78rem;">{{ site.api_data.palika_type }}</div>
+                                <div class="text-muted" style="font-size: 0.82rem;">{{ site.api_data.palika_type }}</div>
                                 {% if site.api_data.wardno and site.api_data.wardno != '—' %}
-                                    <div class="text-secondary small" style="font-size: 0.72rem;">Ward No: {{ site.api_data.wardno }}</div>
+                                    <div class="text-secondary" style="font-size: 0.80rem;">Ward No: {{ site.api_data.wardno }}</div>
                                 {% endif %}
                             </td>
                             <td class="align-middle">
-                                <code class="fw-bold fs-7 d-block">Lat: {{ site.api_data.latitude }}</code>
-                                <code class="fw-bold fs-7 d-block">Long: {{ site.api_data.longitude }}</code>
+                                <div class="text-nowrap" style="font-size: 0.82rem; font-family: var(--font-monospace, monospace);">
+                                    <span class="text-muted me-1">Lat:</span>{{ site.api_data.latitude }}
+                                </div>
+                                <div class="text-nowrap" style="font-size: 0.82rem; font-family: var(--font-monospace, monospace);">
+                                    <span class="text-muted me-1">Long:</span>{{ site.api_data.longitude }}
+                                </div>
                             </td>
                             <td class="align-middle">
                                 {% if site.api_data.status == 'Operational' %}
