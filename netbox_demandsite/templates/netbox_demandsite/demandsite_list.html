@@ -68,14 +68,13 @@
         background-color: #ffffff !important;
     }
 
-    /* Table Styles - Segoe UI 14px 400 */
+    /* Table Styles */
     .premium-table {
         border-collapse: separate;
         border-spacing: 0;
         width: 100%;
-        font-size: 14px !important;
-        font-family: "Segoe UI", sans-serif !important;
-        font-weight: 400 !important;
+        font-size: 13px !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
         background-color: #ffffff;
     }
     .premium-table th {
@@ -88,16 +87,15 @@
         padding: 8px 10px;
         border-bottom: 1px solid #e2e8f0;
         border-top: 1px solid #e2e8f0;
-        font-family: "Segoe UI", sans-serif !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
     }
     .premium-table td {
         padding: 8px 10px;
         border-bottom: none;
         color: #0f172a;
-        font-size: 14px !important;
-        font-weight: 400 !important;
+        font-size: 13px !important;
         vertical-align: middle;
-        font-family: "Segoe UI", sans-serif !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
     }
     
     .row-demand-api td {
@@ -338,16 +336,12 @@
                         <th style="width: 7%;">SOURCE</th>
                         <th style="width: 8%;">SITEID</th>
                         <th style="width: 14%;">SITENAME/SITENAME2</th>
-                        <th style="width: 6%;">PROVINCE</th>
-                        <th style="width: 8%;">DISTRICT</th>
-                        <th style="width: 12%;">LOCAL LEVEL / PALIKA</th>
-                        <th style="width: 11%;">LOCAL LEVEL NAME/PALIKA TYPE</th>
-                        <th style="width: 4%;">WARD NO.</th>
-                        <th style="width: 6%;">LAT</th>
-                        <th style="width: 6%;">LONG</th>
-                        <th style="width: 6%;">STATUS</th>
-                        <th style="width: 10%;">TECHNOLOGY</th>
-                        <th class="text-center" style="width: 7%;">MATCH STATUS</th>
+                        <th style="width: 12%;">PROVINCE / DISTRICT</th>
+                        <th style="width: 18%;">LOCAL LEVEL</th>
+                        <th style="width: 12%;">COORDINATES</th>
+                        <th style="width: 7%;">STATUS</th>
+                        <th style="width: 11%;">TECHNOLOGY</th>
+                        <th class="text-center" style="width: 8%;">MATCH STATUS</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -382,39 +376,25 @@
                                 {% endif %}
                             </td>
                             
-                            <!-- Province/Region -->
-                            <td class="{% if site.region_diff %}cell-mismatch{% endif %}">
-                                {{ site.nb_data.region }}
+                            <!-- Province / District (2 lines) -->
+                            <td class="{% if site.region_diff or site.district_diff %}cell-mismatch{% endif %}">
+                                <div>{{ site.nb_data.region }}</div>
+                                <div class="text-muted small" style="font-size: 11px; line-height: 1.2;">{{ site.nb_data.district }}</div>
                             </td>
                             
-                            <!-- District -->
-                            <td class="{% if site.district_diff %}cell-mismatch{% endif %}">
-                                {{ site.nb_data.district }}
+                            <!-- Local Level (3 lines: Name, Type, Ward) -->
+                            <td class="{% if site.palika_diff or site.local_level_diff or site.ward_diff %}cell-mismatch{% endif %}">
+                                <div style="font-weight: 500;">{{ site.nb_data.local_level_name }}</div>
+                                <div class="text-muted small" style="font-size: 11px; line-height: 1.2;">{{ site.nb_data.local_level }}</div>
+                                {% if site.nb_data.ward and site.nb_data.ward != '—' %}
+                                    <div class="text-secondary small" style="font-size: 10px; line-height: 1.1;">Ward No: {{ site.nb_data.ward }}</div>
+                                {% endif %}
                             </td>
                             
-                            <!-- Palika Name -->
-                            <td class="{% if site.palika_diff %}cell-mismatch{% endif %}">
-                                {{ site.nb_data.local_level_name }}
-                            </td>
-                            
-                            <!-- Local Level Type -->
-                            <td class="{% if site.local_level_diff %}cell-mismatch{% endif %}">
-                                {{ site.nb_data.local_level }}
-                            </td>
-                            
-                            <!-- Ward -->
-                            <td class="{% if site.ward_diff %}cell-mismatch{% endif %}">
-                                {{ site.nb_data.ward }}
-                            </td>
-                            
-                            <!-- Latitude -->
-                            <td class="font-monospace text-muted {% if site.lat_diff %}cell-mismatch{% endif %}">
-                                {{ site.nb_data.latitude }}
-                            </td>
-                            
-                            <!-- Longitude -->
-                            <td class="font-monospace text-muted {% if site.lon_diff %}cell-mismatch{% endif %}">
-                                {{ site.nb_data.longitude }}
+                            <!-- Coordinates (2 lines: Lat, Long) -->
+                            <td class="font-monospace text-muted {% if site.lat_diff or site.lon_diff %}cell-mismatch{% endif %}" style="font-size: 11px;">
+                                <div>Lat: {{ site.nb_data.latitude }}</div>
+                                <div>Long: {{ site.nb_data.longitude }}</div>
                             </td>
                             
                             <!-- Status -->
@@ -437,7 +417,7 @@
                             <!-- NetBox Devices -->
                             <td class="{% if site.tech_diff %}cell-mismatch{% endif %}">
                                 {% if site.nb_data.devices %}
-                                    <div class="d-flex flex-column gap-1" style="min-width: 140px;">
+                                    <div class="d-flex flex-column gap-1" style="min-width: 120px;">
                                         {% for dev in site.nb_data.devices %}
                                             {% if dev.status == 'active' %}
                                                 <span class="badge badge-tech text-nowrap" style="background-color:#dcfce7;color:#166534;border:1px solid #86efac;">
@@ -506,24 +486,26 @@
                             <!-- Name -->
                             <td>{{ site.api_data.sitename }}</td>
                             
-                            <!-- Province -->
-                            <td>{{ site.api_data.province }}</td>
+                            <!-- Province / District (2 lines) -->
+                            <td>
+                                <div>{{ site.api_data.province }}</div>
+                                <div class="text-muted small" style="font-size: 11px; line-height: 1.2;">{{ site.api_data.district }}</div>
+                            </td>
                             
-                            <!-- District -->
-                            <td>{{ site.api_data.district }}</td>
+                            <!-- Local Level (3 lines: Name, Type, Ward) -->
+                            <td>
+                                <div style="font-weight: 500;">{{ site.api_data.palika }}</div>
+                                <div class="text-muted small" style="font-size: 11px; line-height: 1.2;">{{ site.api_data.palika_type }}</div>
+                                {% if site.api_data.wardno and site.api_data.wardno != '—' %}
+                                    <div class="text-secondary small" style="font-size: 10px; line-height: 1.1;">Ward No: {{ site.api_data.wardno }}</div>
+                                {% endif %}
+                            </td>
                             
-                            <!-- Palika -->
-                            <td>{{ site.api_data.palika }}</td>
-                            
-                            <!-- Palika Type -->
-                            <td>{{ site.api_data.palika_type }}</td>
-                            
-                            <!-- Ward -->
-                            <td>{{ site.api_data.wardno }}</td>
-                            
-                            <!-- Lat / Long -->
-                            <td class="font-monospace text-muted">{{ site.api_data.latitude }}</td>
-                            <td class="font-monospace text-muted">{{ site.api_data.longitude }}</td>
+                            <!-- Coordinates (2 lines: Lat, Long) -->
+                            <td class="font-monospace text-muted" style="font-size: 11px;">
+                                <div>Lat: {{ site.api_data.latitude }}</div>
+                                <div>Long: {{ site.api_data.longitude }}</div>
+                            </td>
                             
                             <!-- Status -->
                             <td>
@@ -548,7 +530,7 @@
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="14" class="text-center py-4 text-muted">
+                            <td colspan="10" class="text-center py-4 text-muted">
                                 <i class="mdi mdi-alert-circle-outline display-6"></i>
                                 <p class="mt-2 mb-0">No matching site correlation records found.</p>
                             </td>
