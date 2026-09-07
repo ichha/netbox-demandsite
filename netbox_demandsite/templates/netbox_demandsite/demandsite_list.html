@@ -68,13 +68,14 @@
         background-color: #ffffff !important;
     }
 
-    /* Table Styles - 1:1 Match with Zabbix Plugin Table */
+    /* Table Styles - Segoe UI 14px 400 */
     .premium-table {
         border-collapse: separate;
         border-spacing: 0;
         width: 100%;
-        font-size: 12px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        font-size: 14px !important;
+        font-family: "Segoe UI", sans-serif !important;
+        font-weight: 400 !important;
         background-color: #ffffff;
     }
     .premium-table th {
@@ -82,21 +83,21 @@
         color: #64748b;
         font-weight: 700;
         text-transform: uppercase;
-        font-size: 10px;
+        font-size: 11px;
         letter-spacing: 0.5px;
         padding: 8px 10px;
         border-bottom: 1px solid #e2e8f0;
         border-top: 1px solid #e2e8f0;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        font-family: "Segoe UI", sans-serif !important;
     }
     .premium-table td {
-        padding: 6px 10px;
+        padding: 8px 10px;
         border-bottom: none;
         color: #0f172a;
-        font-size: 12px;
-        font-weight: 500;
+        font-size: 14px !important;
+        font-weight: 400 !important;
         vertical-align: middle;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        font-family: "Segoe UI", sans-serif !important;
     }
     
     .row-demand-api td {
@@ -362,9 +363,9 @@
                             <td><span class="source-netbox"><span class="dot-indicator">•</span> NetBox</span></td>
                             
                             <!-- Site ID -->
-                            <td class="font-monospace fw-bold {% if not site.netbox_site or site.siteid_diff %}cell-mismatch{% endif %}">
+                            <td class="font-monospace {% if not site.netbox_site or site.siteid_diff %}cell-mismatch{% endif %}">
                                 {% if site.netbox_site %}
-                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="text-decoration-none fw-bold" style="color: #2563eb;">
+                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="text-decoration-none" style="color: #2563eb;">
                                         {{ site.netbox_site.name }} <i class="mdi mdi-open-in-new ms-1" style="font-size: 11px; color: #64748b;"></i>
                                     </a>
                                 {% else %}
@@ -373,7 +374,7 @@
                             </td>
                             
                             <!-- Name -->
-                            <td class="{% if site.name_diff %}cell-mismatch{% endif %} fw-bold" style="color: #0f172a;">
+                            <td class="{% if site.name_diff %}cell-mismatch{% endif %}">
                                 {% if site.netbox_site %}
                                     {{ site.nb_data.name }}
                                 {% else %}
@@ -498,12 +499,12 @@
                             <td><span class="source-api"><span class="dot-indicator">•</span> Demand</span></td>
                             
                             <!-- Site ID -->
-                            <td class="font-monospace fw-bold" style="color: #0f172a;">
+                            <td class="font-monospace">
                                 {{ site.api_data.siteid }}
                             </td>
                             
                             <!-- Name -->
-                            <td class="fw-bold" style="color: #0f172a;">{{ site.api_data.sitename }}</td>
+                            <td>{{ site.api_data.sitename }}</td>
                             
                             <!-- Province -->
                             <td>{{ site.api_data.province }}</td>
