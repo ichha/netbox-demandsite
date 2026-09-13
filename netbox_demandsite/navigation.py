@@ -3,7 +3,6 @@ from netbox.plugins import PluginMenu, PluginMenuItem
 menu = PluginMenu(
     label='Demandsite',
     icon_class='mdi mdi-database-sync',
-    permissions=['netbox_demandsite.view_demandsite'],
     groups=(
         ('Demandsite Data', (
             PluginMenuItem(
