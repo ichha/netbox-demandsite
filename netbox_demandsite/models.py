@@ -7,7 +7,7 @@ class DemandSite(models.Model):
     netbox_demandsite appears in NetBox Admin -> Permissions -> Object Types.
     """
     class Meta:
-        default_permissions = ('add', 'change', 'delete', 'view', 'sync')
+        default_permissions = ('add', 'change', 'delete', 'view')
         permissions = (
             ('sync_demandsite', 'Can sync site data from Demandsite API'),
         )
