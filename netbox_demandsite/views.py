@@ -4,8 +4,11 @@ import re
 from decimal import Decimal
 from django.shortcuts import render, redirect
 from django.urls import reverse
-from django.views.generic import View
 from django.contrib.auth.mixins import LoginRequiredMixin
+try:
+    from netbox.views import PermissionRequiredMixin
+except ImportError:
+    from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.contrib import messages
 from django.utils.text import slugify
 from dcim.models import Site, Device, Region, DeviceType, Manufacturer
@@ -596,7 +599,8 @@ def sync_one_site(netbox_site, api_site, cf_name):
     return updated, logs
 
 
-class DemandsiteListView(LoginRequiredMixin, View):
+class DemandsiteListView(PermissionRequiredMixin, View):
+    permission_required = 'netbox_demandsite.view_demandsite'
     template_name = 'netbox_demandsite/demandsite_list.html'
 
     def _get_api_data(self):
@@ -1205,7 +1209,8 @@ class DemandsiteListView(LoginRequiredMixin, View):
         return redirect(redirect_url)
 
 
-class DemandsiteDetailView(LoginRequiredMixin, View):
+class DemandsiteDetailView(PermissionRequiredMixin, View):
+    permission_required = 'netbox_demandsite.view_demandsite'
     """
     Detail page redirects to list.
     """
@@ -1216,7 +1221,8 @@ class DemandsiteDetailView(LoginRequiredMixin, View):
         return redirect('plugins:netbox_demandsite:demandsite_list')
 
 
-class DemandsiteServerView(LoginRequiredMixin, View):
+class DemandsiteServerView(PermissionRequiredMixin, View):
+    permission_required = 'netbox_demandsite.view_demandsite'
     """
     Server overview dashboard showing API connection status,
     total sites, and technology counts (2G, 3G, 4G).
