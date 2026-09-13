@@ -4,6 +4,7 @@ import re
 from decimal import Decimal
 from django.shortcuts import render, redirect
 from django.urls import reverse
+from django.views.generic import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 try:
     from netbox.views import PermissionRequiredMixin
