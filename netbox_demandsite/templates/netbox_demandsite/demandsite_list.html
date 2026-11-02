@@ -138,7 +138,10 @@
                     <i class="mdi mdi-sync me-1"></i> Sync Selected (<span id="selected-count">0</span>)
                 </button>
             </div>
-            <div class="col-auto ms-auto">
+            <div class="col-auto ms-auto d-flex align-items-center gap-2">
+                <a href="{% url 'plugins:netbox_demandsite:demandsite_raw' %}" target="_blank" class="btn btn-sm btn-outline-info fw-semibold" title="View Raw Demand Site API JSON data">
+                    <i class="mdi mdi-code-json me-1"></i> Raw Demandsite Data
+                </a>
                 <span class="badge bg-light text-dark border px-3 py-2 fs-7 fw-semibold">
                     <i class="mdi mdi-filter-check me-1 text-primary"></i>
                     Showing {% if filter == 'matched' %}Matched Sites{% elif filter == 'synced' %}Synced Sites{% elif filter == 'not_in_netbox' %}Missing Sites{% elif filter == 'mismatched' %}Mismatched Sites{% else %}All Demand Sites{% endif %}
@@ -190,42 +193,46 @@
                             </td>
                             <td class="align-middle">
                                 {% if site.netbox_site %}
-                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="text-decoration-none fw-bold" style="color: #2563eb; font-size: 0.85rem;">
-                                        <code>{{ site.netbox_site.name }}</code> <i class="mdi mdi-open-in-new ms-1 small text-muted"></i>
+                                    <a href="{{ site.netbox_site.get_absolute_url }}" target="_blank" class="text-decoration-none fw-bold" style="font-size: 0.85rem;">
+                                        <code class="{% if site.siteid_diff %}text-danger fw-bold text-decoration-underline{% else %}text-primary{% endif %}" {% if site.siteid_diff %}title="Name Mismatch: Expected {{ site.expected_name }}"{% endif %}>{{ site.netbox_site.name }}</code> <i class="mdi mdi-open-in-new ms-1 small text-muted"></i>
                                     </a>
                                 {% else %}
                                     <span class="text-muted small">&mdash;</span>
                                 {% endif %}
                             </td>
-                            <td class="align-middle fw-semibold text-dark" style="font-size: 0.85rem;">
+                            <td class="align-middle fw-semibold" style="font-size: 0.85rem;">
                                 {% if site.netbox_site %}
-                                    {{ site.nb_data.name }}
+                                    <span class="{% if site.name_diff %}text-danger fw-bold text-decoration-underline{% else %}text-dark{% endif %}">{{ site.nb_data.name }}</span>
                                 {% else %}
                                     <span class="text-muted small">&mdash;</span>
                                 {% endif %}
                             </td>
                             <td class="align-middle" style="font-size: 0.85rem;">
-                                <div>{{ site.nb_data.region }}</div>
-                                <div class="text-muted" style="font-size: 0.82rem;">{{ site.nb_data.district }}</div>
+                                <div class="{% if site.region_diff %}text-danger fw-bold text-decoration-underline{% endif %}">{{ site.nb_data.region }}</div>
+                                <div class="{% if site.district_diff %}text-danger fw-bold text-decoration-underline{% else %}text-muted{% endif %}" style="font-size: 0.82rem;">{{ site.nb_data.district }}</div>
                             </td>
                             <td class="align-middle" style="font-size: 0.85rem;">
-                                <div class="fw-semibold">{{ site.nb_data.local_level_name }}</div>
-                                <div class="text-muted" style="font-size: 0.82rem;">{{ site.nb_data.local_level }}</div>
+                                <div class="fw-semibold {% if site.palika_diff %}text-danger fw-bold text-decoration-underline{% endif %}">{{ site.nb_data.local_level_name }}</div>
+                                <div class="{% if site.local_level_diff %}text-danger fw-bold text-decoration-underline{% else %}text-muted{% endif %}" style="font-size: 0.82rem;">{{ site.nb_data.local_level }}</div>
                                 {% if site.nb_data.ward and site.nb_data.ward != '—' %}
-                                    <div class="text-secondary" style="font-size: 0.80rem;">Ward No: {{ site.nb_data.ward }}</div>
+                                    <div class="{% if site.ward_diff %}text-danger fw-bold text-decoration-underline{% else %}text-secondary{% endif %}" style="font-size: 0.80rem;">Ward No: {{ site.nb_data.ward }}</div>
                                 {% endif %}
                             </td>
                             <td class="align-middle">
-                                <div class="text-nowrap" style="font-size: 0.82rem; font-family: var(--font-monospace, monospace);">
+                                <div class="text-nowrap {% if site.lat_diff %}text-danger fw-bold text-decoration-underline{% endif %}" style="font-size: 0.82rem; font-family: var(--font-monospace, monospace);">
                                     <span class="text-muted me-1">Lat:</span>{{ site.nb_data.latitude }}
                                 </div>
-                                <div class="text-nowrap" style="font-size: 0.82rem; font-family: var(--font-monospace, monospace);">
+                                <div class="text-nowrap {% if site.lon_diff %}text-danger fw-bold text-decoration-underline{% endif %}" style="font-size: 0.82rem; font-family: var(--font-monospace, monospace);">
                                     <span class="text-muted me-1">Long:</span>{{ site.nb_data.longitude }}
                                 </div>
                             </td>
                             <td class="align-middle">
                                 {% if site.netbox_site %}
-                                    {% if site.nb_data.status == 'Active' or site.nb_data.status == 'active' %}
+                                    {% if site.status_diff %}
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold px-2 py-1" style="font-size: 0.78rem;" title="Status mismatch">
+                                            <i class="mdi mdi-alert-circle me-1"></i>{{ site.nb_data.status }}
+                                        </span>
+                                    {% elif site.nb_data.status == 'Active' or site.nb_data.status == 'active' %}
                                         <span class="badge bg-success-subtle text-dark border border-success-subtle fw-semibold px-2 py-1" style="font-size: 0.78rem;">
                                             <i class="mdi mdi-check-circle-outline me-1"></i>Active
                                         </span>
@@ -254,17 +261,27 @@
                                                 </span>
                                             {% endif %}
                                         {% endfor %}
+                                        {% if site.tech_diff %}
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold" style="font-size: 0.70rem;">
+                                                <i class="mdi mdi-alert-circle me-1"></i>Mismatch
+                                            </span>
+                                        {% endif %}
                                     </div>
                                 {% else %}
                                     <span class="text-muted small">&mdash;</span>
+                                    {% if site.tech_diff %}
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold d-block mt-1" style="font-size: 0.70rem;">
+                                            <i class="mdi mdi-alert-circle me-1"></i>Missing Devices
+                                        </span>
+                                    {% endif %}
                                 {% endif %}
                             </td>
 
-                            <!-- MATCH STATUS & ACTION: COMBINED ACROSS 2 ROWS (Exact Zabbix Plugin Design) -->
+                            <!-- MATCH STATUS & ACTION: COMBINED ACROSS 2 ROWS -->
                             <td rowspan="2" class="align-middle text-end border-start bg-body-tertiary">
                                 <div class="d-flex flex-column align-items-end gap-2 p-1">
                                     {% if site.netbox_site %}
-                                        {% if site.needs_sync %}
+                                        {% if site.has_mismatch %}
                                             <span class="badge bg-warning-subtle text-dark border border-warning-subtle fw-bold w-100 p-2" style="font-size: 0.8rem;">
                                                 <i class="mdi mdi-alert-circle me-1"></i> Value Mismatch
                                             </span>
@@ -294,37 +311,37 @@
                                 <i class="mdi mdi-circle-medium text-primary me-1"></i>Demand
                             </td>
                             <td class="align-middle" style="font-size: 0.85rem;">
-                                <code style="font-size: 0.85rem;">{{ site.api_data.siteid }}</code>
+                                <code style="font-size: 0.85rem;" class="{% if site.siteid_diff %}text-danger fw-bold text-decoration-underline{% endif %}">{{ site.api_data.siteid }}</code>
                             </td>
-                            <td class="align-middle fw-semibold text-dark" style="font-size: 0.85rem;">
-                                {{ site.api_data.sitename }}
-                            </td>
-                            <td class="align-middle" style="font-size: 0.85rem;">
-                                <div>{{ site.api_data.province }}</div>
-                                <div class="text-muted" style="font-size: 0.82rem;">{{ site.api_data.district }}</div>
+                            <td class="align-middle fw-semibold" style="font-size: 0.85rem;">
+                                <span class="{% if site.name_diff %}text-danger fw-bold text-decoration-underline{% else %}text-dark{% endif %}">{{ site.api_data.sitename }}</span>
                             </td>
                             <td class="align-middle" style="font-size: 0.85rem;">
-                                <div class="fw-semibold">{{ site.api_data.palika }}</div>
-                                <div class="text-muted" style="font-size: 0.82rem;">{{ site.api_data.palika_type }}</div>
+                                <div class="{% if site.region_diff %}text-danger fw-bold text-decoration-underline{% endif %}">{{ site.api_data.province }}</div>
+                                <div class="{% if site.district_diff %}text-danger fw-bold text-decoration-underline{% else %}text-muted{% endif %}" style="font-size: 0.82rem;">{{ site.api_data.district }}</div>
+                            </td>
+                            <td class="align-middle" style="font-size: 0.85rem;">
+                                <div class="fw-semibold {% if site.palika_diff %}text-danger fw-bold text-decoration-underline{% endif %}">{{ site.api_data.palika }}</div>
+                                <div class="{% if site.local_level_diff %}text-danger fw-bold text-decoration-underline{% else %}text-muted{% endif %}" style="font-size: 0.82rem;">{{ site.api_data.palika_type }}</div>
                                 {% if site.api_data.wardno and site.api_data.wardno != '—' %}
-                                    <div class="text-secondary" style="font-size: 0.80rem;">Ward No: {{ site.api_data.wardno }}</div>
+                                    <div class="{% if site.ward_diff %}text-danger fw-bold text-decoration-underline{% else %}text-secondary{% endif %}" style="font-size: 0.80rem;">Ward No: {{ site.api_data.wardno }}</div>
                                 {% endif %}
                             </td>
                             <td class="align-middle">
-                                <div class="text-nowrap" style="font-size: 0.82rem; font-family: var(--font-monospace, monospace);">
+                                <div class="text-nowrap {% if site.lat_diff %}text-danger fw-bold text-decoration-underline{% endif %}" style="font-size: 0.82rem; font-family: var(--font-monospace, monospace);">
                                     <span class="text-muted me-1">Lat:</span>{{ site.api_data.latitude }}
                                 </div>
-                                <div class="text-nowrap" style="font-size: 0.82rem; font-family: var(--font-monospace, monospace);">
+                                <div class="text-nowrap {% if site.lon_diff %}text-danger fw-bold text-decoration-underline{% endif %}" style="font-size: 0.82rem; font-family: var(--font-monospace, monospace);">
                                     <span class="text-muted me-1">Long:</span>{{ site.api_data.longitude }}
                                 </div>
                             </td>
                             <td class="align-middle">
                                 {% if site.api_data.status == 'Operational' %}
-                                    <span class="badge bg-success-subtle text-dark border border-success-subtle fw-semibold px-2 py-1" style="font-size: 0.78rem;">
+                                    <span class="badge {% if site.status_diff %}bg-danger-subtle text-danger border-danger-subtle{% else %}bg-success-subtle text-dark border-success-subtle{% endif %} border fw-semibold px-2 py-1" style="font-size: 0.78rem;">
                                         <i class="mdi mdi-check-circle-outline me-1"></i>Operational
                                     </span>
                                 {% else %}
-                                    <span class="badge bg-secondary-subtle text-dark border border-secondary-subtle fw-semibold px-2 py-1" style="font-size: 0.78rem;">
+                                    <span class="badge {% if site.status_diff %}bg-danger-subtle text-danger border-danger-subtle{% else %}bg-secondary-subtle text-dark border-secondary-subtle{% endif %} border fw-semibold px-2 py-1" style="font-size: 0.78rem;">
                                         <i class="mdi mdi-clock-outline me-1"></i>{{ site.api_data.status }}
                                     </span>
                                 {% endif %}

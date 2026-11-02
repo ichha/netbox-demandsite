@@ -15,6 +15,11 @@ menu = PluginMenu(
                 link_text='Server',
                 permissions=['netbox_demandsite.view_demandsite']
             ),
+            PluginMenuItem(
+                link='plugins:netbox_demandsite:demandsite_raw',
+                link_text='Raw API Data',
+                permissions=['netbox_demandsite.view_demandsite']
+            ),
         )),
     )
 )
