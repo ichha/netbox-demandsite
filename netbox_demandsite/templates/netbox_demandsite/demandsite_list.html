@@ -10,8 +10,8 @@
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb mb-0">
             <li class="breadcrumb-item"><a href="/">Home</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'plugins:netbox_demandsite:demandsite_list' %}">DemandWSD</a></li>
-            <li class="breadcrumb-item active" aria-current="page">DemandSites</li>
+            <li class="breadcrumb-item"><a href="{% url 'plugins:netbox_demandsite:demandsite_list' %}">Demand WSD</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Demand Sites</li>
         </ol>
     </nav>
 </div>
@@ -24,6 +24,51 @@
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     {% endfor %}
+{% endif %}
+
+<!-- Sync Execution Logs Banner (Displayed when any sync action occurs) -->
+{% if sync_logs and sync_logs.logs %}
+    <div class="alert alert-info alert-dismissible fade show shadow-sm mb-3 border border-info-subtle" role="alert">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="fw-bold fs-6 text-dark">
+                <i class="mdi mdi-clipboard-text-outline text-primary me-1"></i> Sync Execution Logs &mdash; {{ sync_logs.siteid }} <span class="text-muted fw-normal small">({{ sync_logs.time }})</span>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        <div class="bg-white p-2 rounded border font-monospace" style="max-height: 220px; overflow-y: auto; font-size: 0.85rem;">
+            {% for log in sync_logs.logs %}
+                <div class="py-1 border-bottom border-light text-dark"><i class="mdi mdi-check-circle-outline text-success me-1"></i>{{ log }}</div>
+            {% endfor %}
+        </div>
+    </div>
+{% endif %}
+
+<!-- Last 24-Hour Auto-Sync Status & Logs (if available) -->
+{% if auto_sync_log %}
+    <div class="card card-sm bg-body-tertiary border-0 shadow-sm mb-3">
+        <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fw-semibold" style="font-size: 0.80rem;">
+                    <i class="mdi mdi-clock-check-outline me-1"></i> 24h Auto-Sync
+                </span>
+                <span class="text-dark small fw-semibold" style="font-size: 0.85rem;">Last execution: {{ auto_sync_log.time }} &mdash; {{ auto_sync_log.summary }}</span>
+            </div>
+            {% if auto_sync_log.logs %}
+                <button class="btn btn-sm btn-outline-secondary py-0 px-2 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#autoSyncLogCollapse" aria-expanded="false" style="font-size: 0.80rem;">
+                    <i class="mdi mdi-text-box-search-outline me-1"></i> View Auto-Sync Logs
+                </button>
+            {% endif %}
+        </div>
+        {% if auto_sync_log.logs %}
+            <div class="collapse" id="autoSyncLogCollapse">
+                <div class="card-footer bg-white border-top p-2 font-monospace" style="max-height: 180px; overflow-y: auto; font-size: 0.82rem;">
+                    {% for log in auto_sync_log.logs %}
+                        <div class="py-1 border-bottom border-light text-secondary"><i class="mdi mdi-arrow-right-circle text-primary me-1"></i>{{ log }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
 {% endif %}
 
 <!-- Top Summary Cards (Exact Zabbix Host Page Metric Display) -->
@@ -161,13 +206,10 @@
                 <button type="button" id="sync-selected-btn" class="btn btn-sm btn-success fw-bold text-white ms-2 px-3" onclick="submitBulkSync()" disabled title="Sync selected sites to NetBox" style="font-size: 0.90rem;">
                     <i class="mdi mdi-sync me-1"></i> Sync Selected (<span id="selected-count">0</span>)
                 </button>
-                <button type="button" class="btn btn-sm btn-outline-success fw-bold ms-2 px-3" onclick="submitSyncAll()" title="Run full 24-hour sync of all Demand Sites now" style="font-size: 0.90rem;">
-                    <i class="mdi mdi-sync-circle me-1"></i> Sync All (24h)
-                </button>
             </div>
             <div class="col-auto ms-auto d-flex align-items-center gap-2">
-                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-2 fw-semibold" style="font-size: 0.85rem;" title="Auto-Sync runs automatically every 24 hours">
-                    <i class="mdi mdi-clock-check-outline me-1"></i> Auto-Sync: 24h
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-2 fw-semibold" style="font-size: 0.85rem;" title="Every 24 hours, NetBox checks for sites in Demand that do not exist in NetBox and imports them automatically">
+                    <i class="mdi mdi-clock-check-outline me-1"></i> Auto-Sync: 24h (New Sites)
                 </span>
                 <a href="{% url 'plugins:netbox_demandsite:demandsite_raw' %}" class="btn btn-sm btn-outline-info fw-semibold" title="View Raw Demand Site Data in Table Form" style="font-size: 0.90rem;">
                     <i class="mdi mdi-table me-1"></i> Raw Demand Table
@@ -496,21 +538,6 @@
         }
         actionInput.value = 'sync_selected';
         form.submit();
-    }
-
-    function submitSyncAll() {
-        if (confirm('Start full synchronization of all Demand Sites into NetBox? (Matches the 24-hour background auto-sync schedule)')) {
-            const form = document.getElementById('bulk-sync-form');
-            let actionInput = form.querySelector('input[name="action"]');
-            if (!actionInput) {
-                actionInput = document.createElement('input');
-                actionInput.type = 'hidden';
-                actionInput.name = 'action';
-                form.appendChild(actionInput);
-            }
-            actionInput.value = 'sync_all';
-            form.submit();
-        }
     }
 </script>
 

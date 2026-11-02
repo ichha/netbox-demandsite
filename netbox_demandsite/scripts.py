@@ -1,24 +1,26 @@
 import logging
 from extras.scripts import Script
-from .views import sync_all_demand_sites
+from .views import auto_sync_missing_demand_sites
 
 logger = logging.getLogger('netbox.plugins.netbox_demandsite')
 
 
 class DemandsiteDailySyncScript(Script):
     class Meta:
-        name = "Demandsite 24-Hour Auto Sync"
-        description = "Automated daily synchronization of Demand Site API data into NetBox"
+        name = "Demand WSD 24-Hour Auto Sync"
+        description = "Checks Demand sites that do not exist in NetBox and synchronizes them"
         scheduling_enabled = True
 
     def run(self, data, commit):
-        self.log_info("Starting Demandsite 24-Hour Synchronization...")
-        result = sync_all_demand_sites(logger_func=self.log_info)
+        self.log_info("Starting Demand WSD 24-Hour Auto Sync (Missing Sites)...")
+        result = auto_sync_missing_demand_sites(logger_func=self.log_info)
         self.log_success(
-            f"Demandsite sync completed: Total={result['total']}, "
-            f"Created={result['created']}, Updated={result['updated']}, "
-            f"Unchanged={result['unchanged']}, Errors={len(result['errors'])}"
+            f"Auto-Sync finished: {result['created']} new sites imported, "
+            f"{result['skipped']} existing sites preserved."
         )
+        if result['logs']:
+            for line in result['logs'][:20]:
+                self.log_info(line)
         if result['errors']:
             for err in result['errors'][:10]:
                 self.log_failure(err)

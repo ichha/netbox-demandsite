@@ -10,16 +10,16 @@ try:
     @system_job(interval=JobIntervalChoices.INTERVAL_DAILY)
     class DemandsiteDailyAutoSyncJob(JobRunner):
         class Meta:
-            name = "Demandsite 24-Hour Auto Sync"
-            description = "Periodically syncs sites and BTS devices from Demand Site API into NetBox every 24 hours."
+            name = "Demand WSD 24-Hour Auto Sync"
+            description = "Checks every 24 hours for sites in Demand that do not exist in NetBox, and imports them."
 
         def run(self, *args, **kwargs):
-            self.logger.info("Executing Demandsite 24-Hour Auto Sync periodic job...")
-            from .views import sync_all_demand_sites
-            res = sync_all_demand_sites(logger_func=self.logger.info)
+            self.logger.info("Executing Demand WSD 24-Hour Auto Sync (Importing missing sites)...")
+            from .views import auto_sync_missing_demand_sites
+            res = auto_sync_missing_demand_sites(logger_func=self.logger.info)
             self.logger.info(
-                f"Auto sync completed: total={res['total']}, created={res['created']}, "
-                f"updated={res['updated']}, unchanged={res['unchanged']}, errors={len(res['errors'])}"
+                f"Auto sync completed: {res['created']} new sites imported, "
+                f"{res['skipped']} existing sites preserved, {len(res['errors'])} errors."
             )
             return res
 

@@ -753,6 +753,117 @@ def fetch_demand_api_data():
         return [], str(e), False
 
 
+def auto_sync_missing_demand_sites(logger_func=None):
+    """
+    Automated 24-Hour Synchronization:
+    Checks which sites exist in Demand API and do NOT exist in NetBox.
+    If so, creates and synchronizes them into NetBox with basic site data and BTS devices.
+    Sites that already exist in NetBox are left untouched.
+    """
+    from django.core.cache import cache
+    from django.utils import timezone
+
+    if logger_func is None:
+        logger_func = logger.info
+
+    now_str = timezone.now().strftime('%Y-%m-%d %H:%M:%S')
+    logger_func(f"[{now_str}] Starting 24-Hour Auto-Sync (Checking Demand sites missing in NetBox)...")
+
+    api_sites, api_error, _ = fetch_demand_api_data()
+    if api_error and not api_sites:
+        err_msg = f"Auto-Sync failed: Could not fetch Demand Site API data ({api_error})"
+        logger_func(err_msg)
+        cache.set('demandsite_auto_sync_log', {
+            'time': now_str,
+            'summary': f"Failed: {api_error}",
+            'created': 0,
+            'skipped': 0,
+            'logs': [err_msg],
+            'status': 'error'
+        }, 86400 * 3)
+        return {'total': 0, 'created': 0, 'skipped': 0, 'logs': [err_msg], 'errors': [err_msg]}
+
+    cf_name = get_site_id_cf_name()
+    total = len(api_sites)
+    created_count = 0
+    skipped_count = 0
+    sync_logs = []
+    errors = []
+
+    for item in api_sites:
+        siteid = str(item.get('siteid') or '').strip()
+        if not siteid:
+            continue
+        try:
+            api_name = get_api_site_name(item)
+            netbox_site = find_netbox_site_for_api(siteid, api_name, cf_name)
+
+            # Auto sync rule: Only sync sites that exist in Demand and do NOT exist in NetBox!
+            if not netbox_site:
+                clean_sitename = get_api_sitename2(item)
+                desired_name = get_expected_netbox_site_name(siteid, clean_sitename)
+                name = desired_name
+                slug = slugify(desired_name) or slugify(siteid)
+                if Site.objects.filter(slug=slug).exists():
+                    slug = slugify(f"{desired_name}-site")[:100]
+                if Site.objects.filter(name=name).exists():
+                    name = f"{desired_name} (new)"[:100]
+                counter = 1
+                while Site.objects.filter(name=name).exists():
+                    name = f"{desired_name} {counter}"[:100]
+                    counter += 1
+
+                netbox_site = Site(
+                    name=name,
+                    slug=slug,
+                    description=desired_name,
+                    status='active' if str(item.get('status')).strip().lower() == 'operational' else 'planned',
+                    custom_field_data={
+                        cf_name: siteid,
+                        'site_name': clean_sitename or siteid
+                    }
+                )
+                netbox_site.save()
+                _, site_logs = sync_one_site(netbox_site, item, cf_name)
+                created_count += 1
+                log_entry = f"Imported missing site: {siteid} ({netbox_site.name})"
+                if site_logs:
+                    log_entry += f" -> {'; '.join(site_logs[:3])}"
+                logger_func(log_entry)
+                sync_logs.append(log_entry)
+            else:
+                skipped_count += 1
+        except Exception as e:
+            err = f"Site {siteid}: {str(e)}"
+            logger_func(f"Auto-Sync error: {err}")
+            errors.append(err)
+            sync_logs.append(f"ERROR on {siteid}: {str(e)}")
+
+    summary_text = f"Checked {total} Demand sites: {created_count} missing sites imported into NetBox, {skipped_count} existing sites preserved."
+    if errors:
+        summary_text += f" ({len(errors)} errors)"
+    logger_func(f"[{now_str}] Auto-Sync finished: {summary_text}")
+
+    # Store last auto-sync result in cache for 7 days so UI can display it
+    cache.set('demandsite_auto_sync_log', {
+        'time': now_str,
+        'summary': summary_text,
+        'created': created_count,
+        'skipped': skipped_count,
+        'total': total,
+        'logs': sync_logs,
+        'status': 'success' if not errors else 'warning'
+    }, 86400 * 7)
+
+    return {
+        'total': total,
+        'created': created_count,
+        'skipped': skipped_count,
+        'logs': sync_logs,
+        'errors': errors
+    }
+
+
 def sync_all_demand_sites(logger_func=None, target_siteid=None):
     """
     Synchronizes sites and BTS devices from Demand Site API into NetBox.
@@ -1344,6 +1455,10 @@ class DemandsiteListView(PermissionRequiredMixin, View):
         except EmptyPage:
             paginated_sites = paginator.page(paginator.num_pages)
 
+        sync_logs = request.session.pop('last_sync_logs', None)
+        from django.core.cache import cache
+        auto_sync_log = cache.get('demandsite_auto_sync_log')
+
         context = {
             'correlated_sites': paginated_sites,
             'paginator': paginator,
@@ -1357,6 +1472,8 @@ class DemandsiteListView(PermissionRequiredMixin, View):
             'cf_name': cf_name,
             'q': request.GET.get('q', ''),
             'filter': filter_type,
+            'sync_logs': sync_logs,
+            'auto_sync_log': auto_sync_log,
         }
         return render(request, self.template_name, context)
 
@@ -1391,6 +1508,9 @@ class DemandsiteListView(PermissionRequiredMixin, View):
         elif api_error and is_fallback:
             messages.warning(request, f"Notice: {api_error} Syncing from cached snapshot.")
             
+        from django.utils import timezone
+        now_str = timezone.now().strftime('%Y-%m-%d %H:%M:%S')
+
         if action == 'sync_single':
             siteid = str(sync_siteid or '').strip()
             if not siteid:
@@ -1435,10 +1555,21 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                         }
                     )
                     netbox_site.save()
-                    sync_one_site(netbox_site, api_site, cf_name)
+                    _, site_logs = sync_one_site(netbox_site, api_site, cf_name)
+                    created_logs = [f"Created NetBox Site: {netbox_site.name} (Status: {netbox_site.status})"] + site_logs
+                    request.session['last_sync_logs'] = {
+                        'siteid': f"{siteid} ({netbox_site.name})",
+                        'logs': created_logs,
+                        'time': now_str
+                    }
                     messages.success(request, f"Successfully created and synchronized site {siteid} ({netbox_site.name}) in NetBox.")
                 else:
                     updated, logs_list = sync_one_site(netbox_site, api_site, cf_name)
+                    request.session['last_sync_logs'] = {
+                        'siteid': f"{siteid} ({netbox_site.name})",
+                        'logs': logs_list if logs_list else ["All fields already match external Demand data."],
+                        'time': now_str
+                    }
                     device_changes = [log for log in logs_list if any(kw in log for kw in ["Device", "Creating", "changed", "created"])]
                     if updated or device_changes:
                         messages.success(request, f"Successfully synchronized fields for {siteid} ({netbox_site.name}) to NetBox.")
@@ -1457,6 +1588,8 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                 
             success_count = 0
             errors = []
+            all_selected_logs = []
+
             for siteid in siteids:
                 if not siteid:
                     continue
@@ -1498,32 +1631,44 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                             }
                         )
                         netbox_site.save()
-                        sync_one_site(netbox_site, api_site, cf_name)
+                        _, site_logs = sync_one_site(netbox_site, api_site, cf_name)
+                        all_selected_logs.append(f"Created {siteid_str} ({netbox_site.name}): " + ("; ".join(site_logs[:3]) if site_logs else "initial sync"))
                     else:
-                        sync_one_site(netbox_site, api_site, cf_name)
+                        updated, site_logs = sync_one_site(netbox_site, api_site, cf_name)
+                        if site_logs:
+                            all_selected_logs.append(f"Updated {siteid_str} ({netbox_site.name}): " + "; ".join(site_logs[:4]))
+                        else:
+                            all_selected_logs.append(f"Checked {siteid_str} ({netbox_site.name}): Values match (no changes).")
                     success_count += 1
                 except Exception as e:
                     import traceback
                     logger.error(f"Sync error for site {siteid_str}: {traceback.format_exc()}")
                     errors.append(f"Site {siteid_str}: {str(e)}")
+                    all_selected_logs.append(f"Error on {siteid_str}: {str(e)}")
                     
             if success_count > 0:
+                request.session['last_sync_logs'] = {
+                    'siteid': f"{success_count} Selected Sites",
+                    'logs': all_selected_logs,
+                    'time': now_str
+                }
                 messages.success(request, f"Successfully synchronized {success_count} sites.")
             if errors:
                 messages.error(request, f"Failed to sync some sites: {', '.join(errors[:5])}")
 
         elif action == 'sync_all':
-            result = sync_all_demand_sites()
-            if result['total'] == 0 and result['errors']:
-                messages.error(request, f"Sync All failed: {', '.join(result['errors'])}")
-            else:
-                messages.success(
-                    request,
-                    f"24-Hour Auto-Sync executed: {result['created']} created, {result['updated']} updated, "
-                    f"{result['unchanged']} unchanged out of {result['total']} total sites."
-                )
-                if result['errors']:
-                    messages.warning(request, f"{len(result['errors'])} errors occurred: {', '.join(result['errors'][:5])}")
+            result = auto_sync_missing_demand_sites()
+            request.session['last_sync_logs'] = {
+                'siteid': "24-Hour Auto-Sync (Missing Sites)",
+                'logs': result.get('logs', []),
+                'time': now_str
+            }
+            messages.success(
+                request,
+                f"Auto-Sync executed: {result['created']} missing sites imported into NetBox, {result['skipped']} existing sites preserved out of {result['total']} Demand sites."
+            )
+            if result.get('errors'):
+                messages.warning(request, f"{len(result['errors'])} errors occurred: {', '.join(result['errors'][:5])}")
                 
         return redirect(redirect_url)
 
@@ -1593,6 +1738,9 @@ class DemandsiteServerView(PermissionRequiredMixin, View):
             status_label = "Offline"
             status_color = "danger"
 
+        from django.core.cache import cache
+        auto_sync_log = cache.get('demandsite_auto_sync_log')
+
         context = {
             'api_url': api_url,
             'masked_token': masked_token,
@@ -1608,6 +1756,7 @@ class DemandsiteServerView(PermissionRequiredMixin, View):
             'total_provinces': len(provinces),
             'total_districts': len(districts),
             'total_palikas': len(palikas),
+            'auto_sync_log': auto_sync_log,
         }
         return render(request, self.template_name, context)
 

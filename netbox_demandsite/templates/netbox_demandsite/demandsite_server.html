@@ -52,8 +52,8 @@
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb mb-0">
             <li class="breadcrumb-item"><a href="/">Home</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'plugins:netbox_demandsite:demandsite_list' %}">DemandWSD</a></li>
-            <li class="breadcrumb-item active" aria-current="page">DemandServer</li>
+            <li class="breadcrumb-item"><a href="{% url 'plugins:netbox_demandsite:demandsite_list' %}">Demand WSD</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Demand Server</li>
         </ol>
     </nav>
 </div>
@@ -114,6 +114,52 @@
                 <div class="fw-bold text-success" style="font-size: 13px;">
                     <i class="mdi mdi-check-circle me-1"></i> Authenticated
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 24-Hour Auto-Sync Scheduler Status & Logs -->
+<div class="card shadow-sm border-0 mb-4" style="border-radius: 8px; border: 1px solid #e2e8f0 !important;">
+    <div class="card-body p-3">
+        <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom flex-wrap gap-2">
+            <div class="d-flex align-items-center">
+                <i class="mdi mdi-clock-check-outline me-2 text-primary" style="font-size: 20px;"></i>
+                <h5 class="fw-bold mb-0 text-dark">24-Hour Background Auto-Sync Status</h5>
+            </div>
+            <div>
+                <span class="badge" style="background-color: #dcfce7; color: #15803d; border: 1px solid #86efac; border-radius: 20px; padding: 6px 14px; font-size: 12px; font-weight: 700;">
+                    <i class="mdi mdi-check-circle me-1"></i> Scheduled (Every 24h)
+                </span>
+            </div>
+        </div>
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="server-stat-title">SYNC POLICY</div>
+                <div class="fw-bold text-dark" style="font-size: 13px;">Import Missing Sites Only</div>
+                <div class="text-muted small">Preserves existing NetBox data</div>
+            </div>
+            <div class="col-md-3">
+                <div class="server-stat-title">RUN INTERVAL</div>
+                <div class="font-monospace fw-bold text-dark" style="font-size: 13px;">Every 24 Hours (Daily)</div>
+                <div class="text-muted small">Managed via NetBox Worker</div>
+            </div>
+            <div class="col-md-6">
+                <div class="server-stat-title">LAST EXECUTION LOG</div>
+                {% if auto_sync_log %}
+                    <div class="fw-bold text-dark mb-1" style="font-size: 13px;">
+                        {{ auto_sync_log.time }} &mdash; {{ auto_sync_log.summary }}
+                    </div>
+                    {% if auto_sync_log.logs %}
+                        <div class="bg-light p-2 rounded border font-monospace small" style="max-height: 120px; overflow-y: auto; font-size: 0.80rem;">
+                            {% for line in auto_sync_log.logs %}
+                                <div><i class="mdi mdi-arrow-right-circle text-primary me-1"></i>{{ line }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <div class="text-muted small">Next run scheduled by netbox-worker. (Will log execution details here)</div>
+                {% endif %}
             </div>
         </div>
     </div>
