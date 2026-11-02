@@ -330,6 +330,60 @@ def find_best_site_match(site_list, api_name):
     # 5. Fallback to first one
     return site_list[0]
 
+def find_netbox_site_for_api(siteid, api_name, cf_name):
+    """
+    Finds the existing NetBox Site matching the given siteid and api_name.
+    Uses multi-strategy lookup:
+    1. Direct JSON lookup on custom_field_data[cf_name]
+    2. Case-insensitive in-memory match on custom_field_data[cf_name] across all sites
+    3. Match by site name (e.g. "CDR807_...", "CDR807__...", or exact "CDR807")
+    4. Match by slug
+    """
+    if not siteid:
+        return None
+    siteid_clean = str(siteid).strip().upper()
+    
+    # 1. Direct JSON lookup on cf_name
+    try:
+        sites = list(Site.objects.filter(**{f"custom_field_data__{cf_name}": siteid.strip()}))
+        if sites:
+            return find_best_site_match(sites, api_name)
+    except Exception:
+        pass
+
+    # 2. In-memory check matching custom_field_data[cf_name]
+    all_sites = list(Site.objects.select_related('region').all())
+    matching_cf = []
+    for s in all_sites:
+        if s.custom_field_data:
+            val = s.custom_field_data.get(cf_name)
+            if val and str(val).strip().upper() == siteid_clean:
+                matching_cf.append(s)
+    if matching_cf:
+        return find_best_site_match(matching_cf, api_name)
+        
+    # 3. Match by site name (e.g. "CDR807_...", "CDR807__...", or "CDR807")
+    matching_name = [
+        s for s in all_sites
+        if s.name.upper() == siteid_clean or 
+           s.name.upper().startswith(f"{siteid_clean}_") or
+           s.name.upper().startswith(f"{siteid_clean} ")
+    ]
+    if matching_name:
+        return find_best_site_match(matching_name, api_name)
+
+    # 4. Match by slug
+    slug_val = slugify(siteid_clean)
+    if slug_val:
+        matching_slug = [
+            s for s in all_sites
+            if s.slug and (s.slug == slug_val or s.slug.startswith(f"{slug_val}-") or s.slug.startswith(f"{slug_val}_"))
+        ]
+        if matching_slug:
+            return find_best_site_match(matching_slug, api_name)
+
+    return None
+
 def sync_devices_for_site(netbox_site, api_site):
     """
     Synchronises BTS devices for a NetBox site based on API technology flags.
@@ -409,15 +463,25 @@ def sync_one_site(netbox_site, api_site, cf_name):
     """
     updated = False
     logs = []
-    siteid = api_site.get('siteid') or ''
+    siteid = str(api_site.get('siteid') or '').strip()
     
+    if netbox_site.custom_field_data is None:
+        netbox_site.custom_field_data = {}
+        
+    # 0. Sync Site ID Custom Field
+    if cf_name and siteid:
+        if str(netbox_site.custom_field_data.get(cf_name, '')).strip().upper() != siteid.upper():
+            netbox_site.custom_field_data[cf_name] = siteid
+            updated = True
+            logs.append(f"Updated CF {cf_name} to {siteid}")
+
     # 1. Sync Coordinates (Latitude / Longitude)
     api_lat = api_site.get('latitude')
     api_lon = api_site.get('longitude')
     if api_lat:
         try:
             dec_lat = Decimal(str(api_lat).strip())
-            if netbox_site.latitude != dec_lat:
+            if netbox_site.latitude is None or abs(float(netbox_site.latitude) - float(dec_lat)) > 0.00001:
                 netbox_site.latitude = dec_lat
                 updated = True
                 logs.append(f"Updated lat to {dec_lat}")
@@ -426,7 +490,7 @@ def sync_one_site(netbox_site, api_site, cf_name):
     if api_lon:
         try:
             dec_lon = Decimal(str(api_lon).strip())
-            if netbox_site.longitude != dec_lon:
+            if netbox_site.longitude is None or abs(float(netbox_site.longitude) - float(dec_lon)) > 0.00001:
                 netbox_site.longitude = dec_lon
                 updated = True
                 logs.append(f"Updated lon to {dec_lon}")
@@ -449,11 +513,21 @@ def sync_one_site(netbox_site, api_site, cf_name):
         logs.append("Updated status to decommissioning")
 
     # 2.2. Sync NetBox Site name & description to Siteid_sitename, and custom field site_name to API sitename
-    api_name_clean = get_api_site_name(api_site)
+    raw_api_name = get_api_site_name(api_site)
+    clean_sitename = raw_api_name.strip()
+    if siteid and clean_sitename.upper().startswith(siteid.upper()):
+        clean_sitename = clean_sitename[len(siteid):].lstrip('_- ')
+    clean_sitename = clean_sitename.strip('_ ')
+
+    if clean_sitename:
+        if netbox_site.custom_field_data.get('site_name') != clean_sitename:
+            logs.append(f"Changing site_name custom field from {netbox_site.custom_field_data.get('site_name')} to {clean_sitename}")
+            netbox_site.custom_field_data['site_name'] = clean_sitename
+            updated = True
 
     if siteid:
-        if api_name_clean:
-            desired_name = f"{siteid}_{api_name_clean}"
+        if clean_sitename:
+            desired_name = f"{siteid}_{clean_sitename}"
         else:
             desired_name = str(siteid).strip()
 
@@ -472,8 +546,9 @@ def sync_one_site(netbox_site, api_site, cf_name):
             updated = True
 
         expected_slug = slugify(desired_name.strip().lower())
+        if not expected_slug:
+            expected_slug = slugify(siteid.strip().lower())
         if netbox_site.slug != expected_slug:
-            # Check if slug is already taken by a DIFFERENT site
             target_slug = expected_slug
             if Site.objects.filter(slug=target_slug).exclude(id=netbox_site.id).exists():
                 target_slug = f"{expected_slug}-{netbox_site.id}"[:100]
@@ -486,13 +561,10 @@ def sync_one_site(netbox_site, api_site, cf_name):
                 netbox_site.slug = target_slug
                 updated = True
 
-    if api_name_clean:
-        if netbox_site.custom_field_data is None:
-            netbox_site.custom_field_data = {}
-        if netbox_site.custom_field_data.get('site_name') != api_name_clean:
-            logs.append(f"Changing site_name custom field from {netbox_site.custom_field_data.get('site_name')} to {api_name_clean}")
-            netbox_site.custom_field_data['site_name'] = api_name_clean
+        if netbox_site.description != desired_name:
+            netbox_site.description = desired_name
             updated = True
+            logs.append(f"Updated description to {desired_name}")
 
     # 2.5. Sync Region/Province
     api_province = clean_province_name(api_site.get('province'))
@@ -509,17 +581,6 @@ def sync_one_site(netbox_site, api_site, cf_name):
             netbox_site.region = region_obj
             updated = True
             logs.append(f"Updated region to {region_obj.name}")
-        
-    # 3. Sync Description to Siteid_sitename
-    if siteid:
-        if api_name_clean:
-            desired_desc = f"{siteid}_{api_name_clean}"
-        else:
-            desired_desc = str(siteid).strip()
-        if netbox_site.description != desired_desc:
-            netbox_site.description = desired_desc
-            updated = True
-            logs.append(f"Updated description to {desired_desc}")
 
     # 4. Sync Custom Fields (District, Local Level Name, Local Level, Ward)
     district_key = get_cf_key(netbox_site, ['district'])
@@ -529,13 +590,32 @@ def sync_one_site(netbox_site, api_site, cf_name):
         local_level_type_key = None
     ward_key = get_cf_key(netbox_site, ['ward'])
     
-    # Selection fields require finding the correct choice key corresponding to the label
     choices_map = build_cf_choices_map()
     
-    def get_choice_key_for_label(cf_name, label):
+    def get_choice_key_for_label(cf_field_name, label):
+        if not label:
+            return label
+        label_str = str(label).strip().upper()
+        clean_lbl = clean_palika_name(label).strip().upper()
+        # 1. Exact match on label or key
         for (name, key), lbl in choices_map.items():
-            if name.lower() == cf_name.lower() and str(lbl).strip().upper() == str(label).strip().upper():
-                return key
+            if name.lower() == cf_field_name.lower():
+                if str(lbl).strip().upper() == label_str or str(key).strip().upper() == label_str:
+                    return key
+        # 2. Match cleaned name
+        if clean_lbl:
+            for (name, key), lbl in choices_map.items():
+                if name.lower() == cf_field_name.lower():
+                    if clean_palika_name(str(lbl)).strip().upper() == clean_lbl:
+                        return key
+        # 3. First word match (e.g. "Bhagaha")
+        first_word = label_str.split()[0] if label_str else ''
+        if len(first_word) >= 3:
+            for (name, key), lbl in choices_map.items():
+                if name.lower() == cf_field_name.lower():
+                    cand_first = str(lbl).strip().upper().split()[0] if lbl else ''
+                    if cand_first == first_word:
+                        return key
         return label
 
     if district_key and api_site.get('district'):
@@ -556,7 +636,7 @@ def sync_one_site(netbox_site, api_site, cf_name):
         resolved_existing = resolve_cf_display(local_level_name_key, existing_val, choices_map)
         nb_palika_first = str(resolved_existing).strip().split()[0] if resolved_existing else ''
         
-        if api_palika_first.lower() != nb_palika_first.lower():
+        if api_palika_first.lower() != nb_palika_first.lower() or netbox_site.custom_field_data.get(local_level_name_key) != choice_key:
             netbox_site.custom_field_data[local_level_name_key] = choice_key
             updated = True
             logs.append(f"Updated CF local level name to {val_clean}")
@@ -593,7 +673,13 @@ def sync_one_site(netbox_site, api_site, cf_name):
             pass
             
     if updated:
+        netbox_site.custom_field_data = dict(netbox_site.custom_field_data)
         netbox_site.save()
+        logs.append(f"Saved NetBox site: {netbox_site.name}")
+        
+    device_logs = sync_devices_for_site(netbox_site, api_site)
+    logs.extend(device_logs)
+    return updated, logs
         
     device_logs = sync_devices_for_site(netbox_site, api_site)
     logs.extend(device_logs)
@@ -1051,7 +1137,11 @@ class DemandsiteListView(PermissionRequiredMixin, View):
         return render(request, self.template_name, context)
 
     def post(self, request):
+        sync_siteid = request.POST.get('sync_siteid') or request.POST.get('siteid')
         action = request.POST.get('action')
+        if sync_siteid:
+            action = 'sync_single'
+
         cf_name = get_site_id_cf_name()
         
         # Read redirect parameters
@@ -1078,67 +1168,65 @@ class DemandsiteListView(PermissionRequiredMixin, View):
             messages.warning(request, f"Notice: {api_error} Syncing from cached snapshot.")
             
         if action == 'sync_single':
-            siteid = request.POST.get('siteid')
+            siteid = str(sync_siteid or '').strip()
             if not siteid:
                 messages.error(request, "Failed to sync: Site ID not provided.")
                 return redirect(redirect_url)
                 
-            api_site = next((x for x in api_sites if str(x.get('siteid')).strip().upper() == str(siteid).strip().upper()), None)
-            
-            # Lookup sites directly using JSONField query
-            netbox_sites = list(Site.objects.filter(**{f"custom_field_data__{cf_name}": siteid.strip()}))
-            if not netbox_sites:
-                # Case-insensitive fallback
-                netbox_sites = list(Site.objects.filter(**{f"custom_field_data__{cf_name}__iexact": siteid.strip()}))
-            
-            api_name = get_api_site_name(api_site)
-            netbox_site = find_best_site_match(netbox_sites, api_name)
-            
-            if api_site:
-                try:
-                    if not netbox_site:
-                        # Create new site
-                        sitename_clean = get_api_site_name(api_site)
-                        desired_name = f"{siteid}_{sitename_clean}" if (siteid and sitename_clean) else str(siteid).strip()
-                        
-                        name = desired_name
-                        slug = slugify(desired_name)
-                        
-                        if Site.objects.filter(slug=slug).exists():
-                            slug = slugify(f"{desired_name}-site")[:100]
-                        if Site.objects.filter(name=name).exists():
-                            name = f"{desired_name} (new)"[:100]
-                        
-                        counter = 1
-                        while Site.objects.filter(name=name).exists():
-                            name = f"{desired_name} {counter}"[:100]
-                            counter += 1
-                            
-                        netbox_site = Site(
-                            name=name,
-                            slug=slug,
-                            description=desired_name,
-                            status='active' if api_site.get('status') == 'Operational' else 'planned',
-                            custom_field_data={
-                                cf_name: siteid,
-                                'site_name': sitename_clean or siteid
-                            }
-                        )
-                        netbox_site.save()
-                        sync_one_site(netbox_site, api_site, cf_name)
-                        messages.success(request, f"Successfully created and synchronized site {siteid} ({name}) in NetBox.")
-                    else:
-                        updated, logs_list = sync_one_site(netbox_site, api_site, cf_name)
-                        if updated or any("Device" in log or "Creating" in log or "changed" in log or "created" in log for log in logs_list):
-                            messages.success(request, f"Successfully synchronized all fields for {siteid} ({netbox_site.name}) to NetBox.")
-                        else:
-                            messages.success(request, f"Successfully synchronized all fields for {siteid} ({netbox_site.name}) to NetBox.")
-                except Exception as e:
-                    import traceback
-                    logger.error(f"Sync error for site {siteid}: {traceback.format_exc()}")
-                    messages.error(request, f"Sync error for site {siteid}: {str(e)}")
-            else:
+            api_site = next((x for x in api_sites if str(x.get('siteid')).strip().upper() == siteid.upper()), None)
+            if not api_site:
                 messages.error(request, f"Failed to sync site {siteid}. Site not found in API data.")
+                return redirect(redirect_url)
+                
+            api_name = get_api_site_name(api_site)
+            netbox_site = find_netbox_site_for_api(siteid, api_name, cf_name)
+            
+            try:
+                if not netbox_site:
+                    # Create new site
+                    clean_sitename = api_name.strip()
+                    if siteid and clean_sitename.upper().startswith(siteid.upper()):
+                        clean_sitename = clean_sitename[len(siteid):].lstrip('_- ')
+                    clean_sitename = clean_sitename.strip('_ ')
+                    desired_name = f"{siteid}_{clean_sitename}" if (siteid and clean_sitename) else str(siteid).strip()
+                    
+                    name = desired_name
+                    slug = slugify(desired_name) or slugify(siteid)
+                    
+                    if Site.objects.filter(slug=slug).exists():
+                        slug = slugify(f"{desired_name}-site")[:100]
+                    if Site.objects.filter(name=name).exists():
+                        name = f"{desired_name} (new)"[:100]
+                    
+                    counter = 1
+                    while Site.objects.filter(name=name).exists():
+                        name = f"{desired_name} {counter}"[:100]
+                        counter += 1
+                        
+                    netbox_site = Site(
+                        name=name,
+                        slug=slug,
+                        description=desired_name,
+                        status='active' if api_site.get('status') == 'Operational' else 'planned',
+                        custom_field_data={
+                            cf_name: siteid,
+                            'site_name': clean_sitename or siteid
+                        }
+                    )
+                    netbox_site.save()
+                    sync_one_site(netbox_site, api_site, cf_name)
+                    messages.success(request, f"Successfully created and synchronized site {siteid} ({netbox_site.name}) in NetBox.")
+                else:
+                    updated, logs_list = sync_one_site(netbox_site, api_site, cf_name)
+                    device_changes = [log for log in logs_list if any(kw in log for kw in ["Device", "Creating", "changed", "created"])]
+                    if updated or device_changes:
+                        messages.success(request, f"Successfully synchronized all fields for {siteid} ({netbox_site.name}) to NetBox.")
+                    else:
+                        messages.info(request, f"Site {siteid} ({netbox_site.name}) is already synchronized in NetBox.")
+            except Exception as e:
+                import traceback
+                logger.error(f"Sync error for site {siteid}: {traceback.format_exc()}")
+                messages.error(request, f"Sync error for site {siteid}: {str(e)}")
                 
         elif action == 'sync_selected':
             siteids = request.POST.getlist('selected_siteids')
@@ -1151,26 +1239,25 @@ class DemandsiteListView(PermissionRequiredMixin, View):
             for siteid in siteids:
                 if not siteid:
                     continue
-                api_site = next((x for x in api_sites if str(x.get('siteid')).strip().upper() == str(siteid).strip().upper()), None)
+                siteid_str = str(siteid).strip()
+                api_site = next((x for x in api_sites if str(x.get('siteid')).strip().upper() == siteid_str.upper()), None)
                 if not api_site:
-                    errors.append(f"Site {siteid} not found in API.")
+                    errors.append(f"Site {siteid_str} not found in API.")
                     continue
                     
-                netbox_sites = list(Site.objects.filter(**{f"custom_field_data__{cf_name}": siteid.strip()}))
-                if not netbox_sites:
-                    netbox_sites = list(Site.objects.filter(**{f"custom_field_data__{cf_name}__iexact": siteid.strip()}))
-                    
                 api_name = get_api_site_name(api_site)
-                netbox_site = find_best_site_match(netbox_sites, api_name)
+                netbox_site = find_netbox_site_for_api(siteid_str, api_name, cf_name)
                 
                 try:
                     if not netbox_site:
-                        # Create new site
-                        sitename_clean = get_api_site_name(api_site)
-                        desired_name = f"{siteid}_{sitename_clean}" if (siteid and sitename_clean) else str(siteid).strip()
+                        clean_sitename = api_name.strip()
+                        if siteid_str and clean_sitename.upper().startswith(siteid_str.upper()):
+                            clean_sitename = clean_sitename[len(siteid_str):].lstrip('_- ')
+                        clean_sitename = clean_sitename.strip('_ ')
+                        desired_name = f"{siteid_str}_{clean_sitename}" if (siteid_str and clean_sitename) else str(siteid_str).strip()
                         
                         name = desired_name
-                        slug = slugify(desired_name)
+                        slug = slugify(desired_name) or slugify(siteid_str)
                         
                         if Site.objects.filter(slug=slug).exists():
                             slug = slugify(f"{desired_name}-site")[:100]
@@ -1188,8 +1275,8 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                             description=desired_name,
                             status='active' if api_site.get('status') == 'Operational' else 'planned',
                             custom_field_data={
-                                cf_name: siteid,
-                                'site_name': sitename_clean or siteid
+                                cf_name: siteid_str,
+                                'site_name': clean_sitename or siteid_str
                             }
                         )
                         netbox_site.save()
@@ -1199,8 +1286,8 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                     success_count += 1
                 except Exception as e:
                     import traceback
-                    logger.error(f"Sync error for site {siteid}: {traceback.format_exc()}")
-                    errors.append(f"Site {siteid}: {str(e)}")
+                    logger.error(f"Sync error for site {siteid_str}: {traceback.format_exc()}")
+                    errors.append(f"Site {siteid_str}: {str(e)}")
                     
             if success_count > 0:
                 messages.success(request, f"Successfully synchronized {success_count} sites.")

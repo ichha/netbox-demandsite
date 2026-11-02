@@ -8,9 +8,6 @@ class DemandSite(models.Model):
     """
     class Meta:
         default_permissions = ('add', 'change', 'delete', 'view')
-        permissions = (
-            ('sync_demandsite', 'Can sync site data from Demandsite API'),
-        )
         managed = False  # Virtual model: no database table created
         verbose_name = 'Demand Site'
         verbose_name_plural = 'Demand Sites'

@@ -153,7 +153,6 @@
     <div class="table-responsive">
         <form id="bulk-sync-form" action="" method="post">
             {% csrf_token %}
-            <input type="hidden" name="action" value="sync_selected">
             {% if filter %}
                 <input type="hidden" name="filter" value="{{ filter }}">
             {% endif %}
@@ -269,7 +268,7 @@
                                             <span class="badge bg-warning-subtle text-dark border border-warning-subtle fw-bold w-100 p-2" style="font-size: 0.8rem;">
                                                 <i class="mdi mdi-alert-circle me-1"></i> Value Mismatch
                                             </span>
-                                            <button type="submit" name="action" value="sync_single" onclick="this.form.siteid.value='{{ site.api_data.siteid }}'" class="btn btn-sm btn-success fw-bold text-white w-100 py-1" style="font-size: 0.78rem;" title="Sync fields to NetBox">
+                                            <button type="submit" name="sync_siteid" value="{{ site.api_data.siteid }}" class="btn btn-sm btn-success fw-bold text-white w-100 py-1" style="font-size: 0.78rem;" title="Sync fields to NetBox">
                                                 <i class="mdi mdi-sync me-1"></i> Sync to NetBox
                                             </button>
                                         {% else %}
@@ -281,7 +280,7 @@
                                         <span class="badge bg-danger-subtle text-dark border border-danger-subtle fw-bold w-100 p-2" style="font-size: 0.8rem;">
                                             <i class="mdi mdi-close-circle me-1"></i> Not in NetBox
                                         </span>
-                                        <button type="submit" name="action" value="sync_single" onclick="this.form.siteid.value='{{ site.api_data.siteid }}'" class="btn btn-sm btn-success fw-bold text-white w-100 py-1" style="font-size: 0.78rem;" title="Add and Sync site to NetBox">
+                                        <button type="submit" name="sync_siteid" value="{{ site.api_data.siteid }}" class="btn btn-sm btn-success fw-bold text-white w-100 py-1" style="font-size: 0.78rem;" title="Add and Sync site to NetBox">
                                             <i class="mdi mdi-plus-circle me-1"></i> Add & Sync
                                         </button>
                                     {% endif %}
@@ -430,7 +429,16 @@
             alert('Please select at least one site to sync.');
             return;
         }
-        document.getElementById('bulk-sync-form').submit();
+        const form = document.getElementById('bulk-sync-form');
+        let actionInput = form.querySelector('input[name="action"]');
+        if (!actionInput) {
+            actionInput = document.createElement('input');
+            actionInput.type = 'hidden';
+            actionInput.name = 'action';
+            form.appendChild(actionInput);
+        }
+        actionInput.value = 'sync_selected';
+        form.submit();
     }
 </script>
 

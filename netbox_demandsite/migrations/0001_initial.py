@@ -17,9 +17,6 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'Demand Sites',
                 'managed': False,
                 'default_permissions': ('add', 'change', 'delete', 'view'),
-                'permissions': (
-                    ('sync_demandsite', 'Can sync site data from Demandsite API'),
-                ),
             },
         ),
     ]
