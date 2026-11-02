@@ -961,21 +961,27 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                 siteid_diff = not is_site_name_match(matched_site.name, expected_site_name)
                 
                 # 2. Sitename2 vs NetBox site_name custom field
+                nb_name_str = str(nb_data['name']).strip() if nb_data['name'] != '—' else ''
                 if not is_placeholder(api_sitename):
-                    nb_name_str = str(nb_data['name']).strip() if nb_data['name'] != '—' else ''
                     name_diff = (nb_name_str.upper() != api_sitename.upper())
+                elif nb_name_str:
+                    # Present in NetBox and not in Demand: show in mismatch list
+                    name_diff = True
                 else:
                     name_diff = False
                     
                 # 3. Status: Operational -> active; otherwise -> planned
                 api_status_str = str(item.get('status', '')).strip().lower()
-                if api_status_str == 'operational':
-                    expected_nb_status = 'active'
-                elif api_status_str == 'discontinued':
-                    expected_nb_status = 'decommissioning'
+                if not is_placeholder(api_status_str):
+                    if api_status_str == 'operational':
+                        expected_nb_status = 'active'
+                    elif api_status_str == 'discontinued':
+                        expected_nb_status = 'decommissioning'
+                    else:
+                        expected_nb_status = 'planned'
+                    status_diff = (matched_site.status.lower() != expected_nb_status)
                 else:
-                    expected_nb_status = 'planned'
-                status_diff = (matched_site.status.lower() != expected_nb_status)
+                    status_diff = False
                 
                 # 4. Coordinates
                 lat_diff = False
@@ -988,18 +994,25 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                             lat_diff = True
                     except Exception:
                         pass
+                elif matched_site.latitude is not None:
+                    # Present in NetBox and not in Demand: show in mismatch list
+                    lat_diff = True
+                    
                 if not is_placeholder(api_lon):
                     try:
                         if matched_site.longitude is None or abs(float(matched_site.longitude) - float(api_lon)) > 0.0001:
                             lon_diff = True
                     except Exception:
                         pass
+                elif matched_site.longitude is not None:
+                    # Present in NetBox and not in Demand: show in mismatch list
+                    lon_diff = True
                         
                 # 5. Province / Region
                 region_diff = False
                 api_province = clean_province_name(item.get('province'))
+                nb_region = str(nb_data['region']).strip()
                 if not is_placeholder(api_province):
-                    nb_region = str(nb_data['region']).strip()
                     if nb_region and nb_region != '—':
                         nb_region_base = nb_region
                         if '_' in nb_region:
@@ -1016,30 +1029,41 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                             region_diff = True
                     else:
                         region_diff = True
+                elif nb_region and nb_region != '—':
+                    # Present in NetBox and not in Demand: show in mismatch list
+                    region_diff = True
                         
                 # 6. District
                 district_diff = False
                 api_district = item.get('district')
+                nb_dist = str(nb_data['district']).strip() if nb_data['district'] != '—' else ''
                 if not is_placeholder(api_district):
-                    nb_dist = str(nb_data['district']).strip()
                     if str(api_district).strip().lower() != nb_dist.lower():
                         district_diff = True
+                elif nb_dist:
+                    # Present in NetBox and not in Demand: show in mismatch list
+                    district_diff = True
                         
                 # 7. Palika / Local Level Name (Janakpur rule & suffixes stripped)
                 palika_diff = False
                 api_palika = item.get('palika')
+                nb_palika = str(nb_data['local_level_name']).strip() if nb_data['local_level_name'] != '—' else ''
                 if not is_placeholder(api_palika):
                     api_palika_clean = clean_palika_name(api_palika)
-                    nb_palika_clean = clean_palika_name(nb_data['local_level_name'])
+                    nb_palika_clean = clean_palika_name(nb_palika)
                     if api_palika_clean.lower() != nb_palika_clean.lower():
                         api_first = api_palika_clean.split()[0].lower() if api_palika_clean else ''
                         nb_first = nb_palika_clean.split()[0].lower() if nb_palika_clean else ''
                         if not (api_first and api_first == nb_first):
                             palika_diff = True
+                elif nb_palika:
+                    # Present in NetBox and not in Demand: show in mismatch list
+                    palika_diff = True
                             
                 # 8. Palika Type / Local Level Type
                 local_level_diff = False
                 api_palika_type = item.get('palika_type')
+                nb_local_level = str(nb_data['local_level']).strip() if nb_data['local_level'] != '—' else ''
                 if not is_placeholder(api_palika_type):
                     mapping = {
                         'RuralMunicipality': 'Rural Municipality',
@@ -1049,15 +1073,22 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                         'Sub-Metropolitan': 'Sub-Metropolitan',
                     }
                     norm_api_type = mapping.get(api_palika_type, api_palika_type)
-                    if str(nb_data['local_level']).strip().lower() != norm_api_type.strip().lower():
+                    if nb_local_level.lower() != norm_api_type.strip().lower():
                         local_level_diff = True
+                elif nb_local_level:
+                    # Present in NetBox and not in Demand: show in mismatch list
+                    local_level_diff = True
                         
                 # 9. Ward
                 ward_diff = False
                 api_ward = item.get('wardno')
+                nb_ward = str(nb_data['ward']).strip() if nb_data['ward'] != '—' else ''
                 if not is_placeholder(api_ward):
-                    if str(nb_data['ward']).strip() != str(api_ward).strip():
+                    if nb_ward != str(api_ward).strip():
                         ward_diff = True
+                elif nb_ward:
+                    # Present in NetBox and not in Demand: show in mismatch list
+                    ward_diff = True
                         
                 # 10. Technology / Devices
                 tech_diff = False
@@ -1075,7 +1106,11 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                         if found_dev is None or found_dev['status'] != 'active':
                             tech_diff = True
                             break
-                    # If tech is not in Demand, do not consider existing NetBox devices as mismatch (Demand is main source)
+                    else:
+                        # Present in NetBox and not in Demand: show in mismatch list
+                        if found_dev is not None and found_dev['status'] == 'active':
+                            tech_diff = True
+                            break
                             
                 has_mismatch = (
                     siteid_diff or name_diff or status_diff or
@@ -1268,9 +1303,9 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                     updated, logs_list = sync_one_site(netbox_site, api_site, cf_name)
                     device_changes = [log for log in logs_list if any(kw in log for kw in ["Device", "Creating", "changed", "created"])]
                     if updated or device_changes:
-                        messages.success(request, f"Successfully synchronized all fields for {siteid} ({netbox_site.name}) to NetBox.")
+                        messages.success(request, f"Successfully synchronized fields for {siteid} ({netbox_site.name}) to NetBox.")
                     else:
-                        messages.info(request, f"Site {siteid} ({netbox_site.name}) is already synchronized in NetBox.")
+                        messages.info(request, f"Site {siteid} ({netbox_site.name}) is synchronized. Existing NetBox values not present in Demand were preserved.")
             except Exception as e:
                 import traceback
                 logger.error(f"Sync error for site {siteid}: {traceback.format_exc()}")
