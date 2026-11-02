@@ -501,19 +501,9 @@ def sync_devices_for_site(netbox_site, api_site):
                 if changed:
                     existing.save()
         else:
-            if existing is not None:
-                # Tech gone from API → mark offline & set tenant
-                changed = False
-                if existing.status != 'offline':
-                    existing.status = 'offline'
-                    changed = True
-                    logs.append(f"Device {existing.name} status changed to offline.")
-                if tenant and existing.tenant != tenant:
-                    existing.tenant = tenant
-                    changed = True
-                    logs.append(f"Device {existing.name} tenant changed to {tenant.name}.")
-                if changed:
-                    existing.save()
+            # If present in NetBox and not in Demand, do NOT sync / do NOT touch.
+            # Demand site is the main source: only sync technologies present in Demand.
+            pass
     return logs
 
 def sync_one_site(netbox_site, api_site, cf_name):
@@ -1085,10 +1075,7 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                         if found_dev is None or found_dev['status'] != 'active':
                             tech_diff = True
                             break
-                    else:
-                        if found_dev is not None and found_dev['status'] != 'offline':
-                            tech_diff = True
-                            break
+                    # If tech is not in Demand, do not consider existing NetBox devices as mismatch (Demand is main source)
                             
                 has_mismatch = (
                     siteid_diff or name_diff or status_diff or
@@ -1441,15 +1428,121 @@ class DemandsiteServerView(PermissionRequiredMixin, View):
 
 class DemandsiteRawView(PermissionRequiredMixin, View):
     permission_required = 'netbox_demandsite.view_demandsite'
+    template_name = 'netbox_demandsite/demandsite_raw.html'
     """
-    Returns the raw Demand Site API JSON data directly.
+    Displays the raw Demand Site API data in a full table view,
+    with search filtering, pagination, metric counters, and optional ?format=json.
     """
     def get(self, request):
         list_view = DemandsiteListView()
         api_sites, api_error, is_fallback = list_view._get_api_data()
         
-        if api_error and not api_sites:
-            return JsonResponse({'error': api_error}, status=502)
+        # If user explicitly requested JSON
+        if request.GET.get('format') == 'json':
+            if api_error and not api_sites:
+                return JsonResponse({'error': api_error}, status=502)
+            return JsonResponse(api_sites, safe=False, json_dumps_params={'indent': 2})
             
-        return JsonResponse(api_sites, safe=False, json_dumps_params={'indent': 2})
+        if api_error:
+            if is_fallback:
+                messages.warning(request, f"Notice: {api_error} (showing cached snapshot)")
+            else:
+                messages.error(request, f"Failed to fetch site data: {api_error}")
+                
+        total_raw_sites = len(api_sites)
+        count_operational = 0
+        count_planned = 0
+        count_with_coords = 0
+        
+        for s in api_sites:
+            status_val = str(s.get('status') or '').strip().lower()
+            if status_val == 'operational':
+                count_operational += 1
+            elif status_val == 'planned':
+                count_planned += 1
+            lat = s.get('latitude')
+            lon = s.get('longitude')
+            if not is_placeholder(lat) and not is_placeholder(lon):
+                count_with_coords += 1
+                
+        # Search filter
+        q = request.GET.get('q', '').strip().upper()
+        filtered_sites = []
+        for idx, item in enumerate(api_sites, 1):
+            siteid = str(item.get('siteid') or '').strip().upper()
+            sname1 = str(item.get('sitename1') or '').strip().upper()
+            sname2 = str(item.get('sitename2') or '').strip().upper()
+            prov = str(item.get('province') or '').strip().upper()
+            dist = str(item.get('district') or '').strip().upper()
+            pal = str(item.get('palika') or '').strip().upper()
+            status = str(item.get('status') or '').strip().upper()
+            
+            if q:
+                if (q not in siteid and 
+                    q not in sname1 and 
+                    q not in sname2 and 
+                    q not in prov and 
+                    q not in dist and 
+                    q not in pal and 
+                    q not in status):
+                    continue
+            
+            # Format technologies
+            tech_flags = parse_api_technologies(item)
+            tech_list = []
+            for tech in item.get('operational_technologies', []):
+                tech_name = tech.get('technology', '')
+                m = re.search(r'([2345]G)', tech_name)
+                if m:
+                    tech_list.append(m.group(1))
+                else:
+                    tech_list.append(tech_name)
+            if not tech_list and item.get('technology'):
+                m = re.search(r'([2345]G)', item.get('technology'))
+                if m:
+                    tech_list.append(m.group(1))
+                else:
+                    tech_list.append(item.get('technology'))
+            if not tech_list:
+                if tech_flags.get('2g'): tech_list.append('2G')
+                if tech_flags.get('3g'): tech_list.append('3G')
+                if tech_flags.get('4g'): tech_list.append('4G')
+            
+            filtered_sites.append({
+                'index': idx,
+                'siteid': item.get('siteid') or '—',
+                'sitename1': item.get('sitename1') or '—',
+                'sitename2': item.get('sitename2') or '—',
+                'province': item.get('province') or '—',
+                'district': item.get('district') or '—',
+                'palika': item.get('palika') or '—',
+                'palika_type': item.get('palika_type') or '—',
+                'wardno': item.get('wardno') if item.get('wardno') is not None else '—',
+                'latitude': item.get('latitude') or '—',
+                'longitude': item.get('longitude') or '—',
+                'status': item.get('status') or '—',
+                'technologies': sorted(list(set(tech_list))),
+            })
+            
+        from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+        paginator = Paginator(filtered_sites, 50)
+        page_num = request.GET.get('page', 1)
+        try:
+            paginated_sites = paginator.page(page_num)
+        except PageNotAnInteger:
+            paginated_sites = paginator.page(1)
+        except EmptyPage:
+            paginated_sites = paginator.page(paginator.num_pages)
+            
+        context = {
+            'sites': paginated_sites,
+            'paginator': paginator,
+            'total_raw_sites': total_raw_sites,
+            'count_operational': count_operational,
+            'count_planned': count_planned,
+            'count_with_coords': count_with_coords,
+            'total_filtered': len(filtered_sites),
+            'q': request.GET.get('q', ''),
+        }
+        return render(request, self.template_name, context)
 

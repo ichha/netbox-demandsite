@@ -1,0 +1,297 @@
+{% extends 'base/layout.html' %}
+{% load helpers %}
+
+{% block title %}Raw Demandsite Data{% endblock %}
+
+{% block content %}
+
+<!-- Flash Messages Notification Banner -->
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show mb-3" role="alert">
+            <i class="mdi mdi-information me-1"></i> {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
+<!-- Breadcrumbs -->
+<div class="mb-2">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/">Home</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'plugins:netbox_demandsite:demandsite_list' %}">Demandsite</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Raw Demandsite Data</li>
+        </ol>
+    </nav>
+</div>
+
+<!-- Header Title Bar -->
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h2 class="fw-bold mb-0 text-dark">
+            <i class="mdi mdi-database-outline text-primary me-2"></i>Raw Demandsite Data
+        </h2>
+        <div class="text-muted fs-7">Direct table view of all site records from the Demand Site API</div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <a href="{% url 'plugins:netbox_demandsite:demandsite_list' %}" class="btn btn-sm btn-outline-primary fw-semibold">
+            <i class="mdi mdi-arrow-left me-1"></i> Correlation Dashboard
+        </a>
+        <a href="?format=json{% if q %}&q={{ q }}{% endif %}" target="_blank" class="btn btn-sm btn-outline-secondary fw-semibold" title="View raw JSON data">
+            <i class="mdi mdi-code-json me-1"></i> Export JSON
+        </a>
+    </div>
+</div>
+
+<!-- Metric Cards -->
+<div class="row mb-4">
+    <!-- 1. Total Raw Sites -->
+    <div class="col-md-3 col-sm-6 mb-2">
+        <div class="card card-sm bg-body-tertiary shadow-sm border-0">
+            <div class="card-body d-flex align-items-center p-3">
+                <div class="avatar bg-primary text-white p-3 rounded-circle me-3">
+                    <i class="mdi mdi-antenna fs-2"></i>
+                </div>
+                <div>
+                    <div class="fs-7 text-muted text-uppercase fw-semibold">Total Demand Sites</div>
+                    <div class="fs-2 fw-bold text-primary">{{ total_raw_sites }}</div>
+                    <div class="fs-7 text-muted">All raw API records</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Operational Sites -->
+    <div class="col-md-3 col-sm-6 mb-2">
+        <div class="card card-sm bg-body-tertiary shadow-sm border-0">
+            <div class="card-body d-flex align-items-center p-3">
+                <div class="avatar bg-success text-white p-3 rounded-circle me-3">
+                    <i class="mdi mdi-check-circle fs-2"></i>
+                </div>
+                <div>
+                    <div class="fs-7 text-muted text-uppercase fw-semibold">Operational</div>
+                    <div class="fs-2 fw-bold text-success">{{ count_operational }}</div>
+                    <div class="fs-7 text-muted">Active status in API</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Planned Sites -->
+    <div class="col-md-3 col-sm-6 mb-2">
+        <div class="card card-sm bg-body-tertiary shadow-sm border-0">
+            <div class="card-body d-flex align-items-center p-3">
+                <div class="avatar bg-info text-white p-3 rounded-circle me-3">
+                    <i class="mdi mdi-clock-outline fs-2"></i>
+                </div>
+                <div>
+                    <div class="fs-7 text-muted text-uppercase fw-semibold">Planned Sites</div>
+                    <div class="fs-2 fw-bold text-info">{{ count_planned }}</div>
+                    <div class="fs-7 text-muted">Planned status in API</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Sites with GPS Coordinates -->
+    <div class="col-md-3 col-sm-6 mb-2">
+        <div class="card card-sm bg-body-tertiary shadow-sm border-0">
+            <div class="card-body d-flex align-items-center p-3">
+                <div class="avatar bg-warning text-dark p-3 rounded-circle me-3">
+                    <i class="mdi mdi-crosshairs-gps fs-2"></i>
+                </div>
+                <div>
+                    <div class="fs-7 text-muted text-uppercase fw-semibold">With Coordinates</div>
+                    <div class="fs-2 fw-bold text-warning">{{ count_with_coords }}</div>
+                    <div class="fs-7 text-muted">Valid Lat / Long</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search & Filter Bar -->
+<div class="card mb-3 shadow-sm border-0">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-center mb-0">
+            <div class="col-auto">
+                <label for="search-input" class="fw-semibold text-muted col-form-label fs-7">Search Raw Data:</label>
+            </div>
+            <div class="col-auto flex-grow-1" style="max-width: 460px;">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="mdi mdi-magnify"></i></span>
+                    <input type="text" id="search-input" name="q" class="form-control form-control-sm" placeholder="Search by Site ID, Sitename, Province, District, Palika, Status..." value="{{ q }}">
+                    {% if q %}
+                        <a href="?" class="btn btn-sm btn-outline-secondary" title="Clear Search">
+                            <i class="mdi mdi-close"></i>
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-primary fw-semibold px-3">Filter</button>
+                {% if q %}
+                    <a href="?" class="btn btn-sm btn-outline-secondary ms-1">Reset</a>
+                {% endif %}
+            </div>
+            <div class="col-auto ms-auto">
+                <span class="badge bg-light text-dark border px-3 py-2 fs-7 fw-semibold">
+                    <i class="mdi mdi-table-check me-1 text-primary"></i>
+                    {% if q %}
+                        Showing {{ total_filtered }} matching sites
+                    {% else %}
+                        Showing all {{ total_raw_sites }} Demand sites
+                    {% endif %}
+                </span>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Raw Demandsite Table Card -->
+<div class="card shadow-sm border-0">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr class="bg-body-tertiary text-uppercase fs-7 text-muted border-bottom">
+                    <th style="width: 50px;" class="text-center">#</th>
+                    <th style="width: 110px;">Site ID</th>
+                    <th>Sitename 1</th>
+                    <th>Sitename 2</th>
+                    <th>Province</th>
+                    <th>District</th>
+                    <th>Palika / Local Level</th>
+                    <th>Palika Type</th>
+                    <th class="text-center">Ward</th>
+                    <th>Coordinates</th>
+                    <th>Status</th>
+                    <th>Technologies</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for site in sites %}
+                    <tr>
+                        <td class="text-center text-muted" style="font-size: 0.80rem;">
+                            {{ site.index }}
+                        </td>
+                        <td>
+                            <code class="fw-bold text-primary" style="font-size: 0.85rem;">{{ site.siteid }}</code>
+                        </td>
+                        <td class="fw-semibold text-dark" style="font-size: 0.85rem;">
+                            {{ site.sitename1 }}
+                        </td>
+                        <td class="fw-semibold text-dark" style="font-size: 0.85rem;">
+                            {{ site.sitename2 }}
+                        </td>
+                        <td style="font-size: 0.85rem;">
+                            {{ site.province }}
+                        </td>
+                        <td style="font-size: 0.85rem;">
+                            {{ site.district }}
+                        </td>
+                        <td style="font-size: 0.85rem;">
+                            <span class="fw-semibold">{{ site.palika }}</span>
+                        </td>
+                        <td class="text-muted" style="font-size: 0.82rem;">
+                            {{ site.palika_type }}
+                        </td>
+                        <td class="text-center" style="font-size: 0.85rem;">
+                            {% if site.wardno and site.wardno != '—' %}
+                                <span class="badge bg-light text-dark border">{{ site.wardno }}</span>
+                            {% else %}
+                                <span class="text-muted">&mdash;</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="text-nowrap" style="font-size: 0.82rem; font-family: var(--font-monospace, monospace);">
+                                <span class="text-muted me-1">Lat:</span>{{ site.latitude }}
+                            </div>
+                            <div class="text-nowrap" style="font-size: 0.82rem; font-family: var(--font-monospace, monospace);">
+                                <span class="text-muted me-1">Lon:</span>{{ site.longitude }}
+                            </div>
+                        </td>
+                        <td>
+                            {% if site.status == 'Operational' %}
+                                <span class="badge bg-success-subtle text-dark border border-success-subtle fw-semibold px-2 py-1" style="font-size: 0.78rem;">
+                                    <i class="mdi mdi-check-circle-outline me-1"></i>Operational
+                                </span>
+                            {% elif site.status == 'Planned' %}
+                                <span class="badge bg-secondary-subtle text-dark border border-secondary-subtle fw-semibold px-2 py-1" style="font-size: 0.78rem;">
+                                    <i class="mdi mdi-clock-outline me-1"></i>Planned
+                                </span>
+                            {% else %}
+                                <span class="badge bg-light text-dark border fw-semibold px-2 py-1" style="font-size: 0.78rem;">
+                                    {{ site.status }}
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if site.technologies %}
+                                <div class="d-flex flex-wrap gap-1">
+                                    {% for tech in site.technologies %}
+                                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-semibold" style="font-size: 0.75rem;">
+                                            {{ tech }}
+                                        </span>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <span class="text-muted small">&mdash;</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="12" class="text-center py-5 text-muted">
+                            <i class="mdi mdi-information-outline fs-3 d-block mb-1"></i>
+                            No Demand site records found matching your search.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination Controls Footer -->
+    {% if total_filtered > 0 %}
+        <div class="card-footer d-flex justify-content-between align-items-center py-2 flex-wrap bg-white border-top">
+            <div class="text-muted fs-7">
+                Showing {{ sites.start_index }} to {{ sites.end_index }} of {{ total_filtered }} sites
+            </div>
+
+            {% if paginator.num_pages > 1 %}
+                <nav aria-label="Table pagination">
+                    <ul class="pagination pagination-sm mb-0">
+                        {% if sites.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1{% if q %}&q={{ q }}{% endif %}">First</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ sites.previous_page_number }}{% if q %}&q={{ q }}{% endif %}">Previous</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                        {% endif %}
+
+                        <li class="page-item active">
+                            <span class="page-link">Page {{ sites.number }} of {{ paginator.num_pages }}</span>
+                        </li>
+
+                        {% if sites.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ sites.next_page_number }}{% if q %}&q={{ q }}{% endif %}">Next</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ paginator.num_pages }}{% if q %}&q={{ q }}{% endif %}">Last</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">Next</span></li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+
+{% endblock %}
