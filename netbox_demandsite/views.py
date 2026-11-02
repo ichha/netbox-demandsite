@@ -720,41 +720,140 @@ def sync_one_site(netbox_site, api_site, cf_name):
     return updated, logs
 
 
+def fetch_demand_api_data():
+    from django.core.cache import cache
+    cache_key = "demandsite_api_data"
+    fallback_key = "demandsite_api_data_fallback"
+    cached_data = cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data, None, False
+
+    url = "https://demandsite.ntc.net.np/api/share/site-dimension"
+    from django.conf import settings
+    plugin_config = settings.PLUGINS_CONFIG.get('netbox_demandsite', {})
+    url = plugin_config.get('api_url', url)
+    api_token = plugin_config.get('api_token', 'ds_share_7b4a2f8c1e9d3056bf47e382d61a9c8f')
+    
+    headers = {
+        "Authorization": f"Bearer {api_token}"
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        # Cache for 10 minutes
+        cache.set(cache_key, data, 600)
+        cache.set(fallback_key, data, 86400 * 7)
+        return data, None, False
+    except Exception as e:
+        logger.error(f"Error fetching Demandsite data: {e}")
+        fallback_data = cache.get(fallback_key)
+        if fallback_data is not None:
+            return fallback_data, f"API server is offline ({e}). Using cached data.", True
+        return [], str(e), False
+
+
+def sync_all_demand_sites(logger_func=None, target_siteid=None):
+    """
+    Synchronizes sites and BTS devices from Demand Site API into NetBox.
+    Designed for:
+      - 24-hour periodic background job (netbox.jobs.system_job / jobs.py)
+      - NetBox Custom Script (scripts.py)
+      - Django management command (manage.py sync_demandsite)
+      - UI Bulk Action 'Sync All'
+      
+    Master logic:
+      - Matches siteid with NetBox custom field 'site_id' or site name.
+      - Updates coordinates, status, name, region, local level, ward, BTS devices.
+      - Never overwrites existing NetBox data if Demand has placeholder/empty values.
+      - Pushes basic site data for sites that exist in Demand and are not yet in NetBox.
+    """
+    if logger_func is None:
+        logger_func = logger.info
+
+    logger_func("Starting Demandsite 24-Hour Synchronization...")
+    api_sites, api_error, _ = fetch_demand_api_data()
+    if api_error and not api_sites:
+        err_msg = f"Failed to fetch Demand Site API data: {api_error}"
+        logger_func(err_msg)
+        return {'total': 0, 'created': 0, 'updated': 0, 'unchanged': 0, 'errors': [err_msg]}
+
+    if target_siteid:
+        target_clean = str(target_siteid).strip().upper()
+        api_sites = [x for x in api_sites if str(x.get('siteid') or '').strip().upper() == target_clean]
+
+    cf_name = get_site_id_cf_name()
+    total = len(api_sites)
+    created_count = 0
+    updated_count = 0
+    unchanged_count = 0
+    errors = []
+
+    for item in api_sites:
+        siteid = str(item.get('siteid') or '').strip()
+        if not siteid:
+            continue
+        try:
+            api_name = get_api_site_name(item)
+            netbox_site = find_netbox_site_for_api(siteid, api_name, cf_name)
+            if not netbox_site:
+                clean_sitename = get_api_sitename2(item)
+                desired_name = get_expected_netbox_site_name(siteid, clean_sitename)
+                name = desired_name
+                slug = slugify(desired_name) or slugify(siteid)
+                if Site.objects.filter(slug=slug).exists():
+                    slug = slugify(f"{desired_name}-site")[:100]
+                if Site.objects.filter(name=name).exists():
+                    name = f"{desired_name} (new)"[:100]
+                counter = 1
+                while Site.objects.filter(name=name).exists():
+                    name = f"{desired_name} {counter}"[:100]
+                    counter += 1
+
+                netbox_site = Site(
+                    name=name,
+                    slug=slug,
+                    description=desired_name,
+                    status='active' if str(item.get('status')).strip().lower() == 'operational' else 'planned',
+                    custom_field_data={
+                        cf_name: siteid,
+                        'site_name': clean_sitename or siteid
+                    }
+                )
+                netbox_site.save()
+                sync_one_site(netbox_site, item, cf_name)
+                created_count += 1
+                logger_func(f"Created new site: {siteid} ({netbox_site.name})")
+            else:
+                updated, logs_list = sync_one_site(netbox_site, item, cf_name)
+                device_changes = [log for log in logs_list if any(kw in log for kw in ["Device", "Creating", "changed", "created"])]
+                if updated or device_changes:
+                    updated_count += 1
+                    logger_func(f"Synchronized site: {siteid} ({netbox_site.name})")
+                else:
+                    unchanged_count += 1
+        except Exception as e:
+            err = f"Site {siteid}: {str(e)}"
+            logger_func(f"Error syncing {err}")
+            errors.append(err)
+
+    summary = {
+        'total': total,
+        'created': created_count,
+        'updated': updated_count,
+        'unchanged': unchanged_count,
+        'errors': errors
+    }
+    logger_func(f"Demandsite sync completed: {created_count} created, {updated_count} updated, {unchanged_count} unchanged, {len(errors)} errors out of {total} sites.")
+    return summary
+
+
 class DemandsiteListView(PermissionRequiredMixin, View):
     permission_required = 'netbox_demandsite.view_demandsite'
     template_name = 'netbox_demandsite/demandsite_list.html'
 
     def _get_api_data(self):
-        from django.core.cache import cache
-        cache_key = "demandsite_api_data"
-        fallback_key = "demandsite_api_data_fallback"
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            return cached_data, None, False
-
-        url = "https://demandsite.ntc.net.np/api/share/site-dimension"
-        from django.conf import settings
-        plugin_config = settings.PLUGINS_CONFIG.get('netbox_demandsite', {})
-        url = plugin_config.get('api_url', url)
-        api_token = plugin_config.get('api_token', 'ds_share_7b4a2f8c1e9d3056bf47e382d61a9c8f')
-        
-        headers = {
-            "Authorization": f"Bearer {api_token}"
-        }
-        try:
-            response = requests.get(url, headers=headers, timeout=5)
-            response.raise_for_status()
-            data = response.json()
-            # Cache for 10 minutes
-            cache.set(cache_key, data, 600)
-            cache.set(fallback_key, data, 86400 * 7)
-            return data, None, False
-        except Exception as e:
-            logger.error(f"Error fetching Demandsite data: {e}")
-            fallback_data = cache.get(fallback_key)
-            if fallback_data is not None:
-                return fallback_data, f"API server is offline ({e}). Using cached data.", True
-            return [], str(e), False
+        return fetch_demand_api_data()
 
     def get(self, request):
         api_sites, api_error, is_fallback = self._get_api_data()
@@ -1412,6 +1511,19 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                 messages.success(request, f"Successfully synchronized {success_count} sites.")
             if errors:
                 messages.error(request, f"Failed to sync some sites: {', '.join(errors[:5])}")
+
+        elif action == 'sync_all':
+            result = sync_all_demand_sites()
+            if result['total'] == 0 and result['errors']:
+                messages.error(request, f"Sync All failed: {', '.join(result['errors'])}")
+            else:
+                messages.success(
+                    request,
+                    f"24-Hour Auto-Sync executed: {result['created']} created, {result['updated']} updated, "
+                    f"{result['unchanged']} unchanged out of {result['total']} total sites."
+                )
+                if result['errors']:
+                    messages.warning(request, f"{len(result['errors'])} errors occurred: {', '.join(result['errors'][:5])}")
                 
         return redirect(redirect_url)
 

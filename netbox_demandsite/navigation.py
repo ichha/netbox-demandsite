@@ -1,23 +1,23 @@
 from netbox.plugins import PluginMenu, PluginMenuItem
 
 menu = PluginMenu(
-    label='Demandsite',
+    label='DemandWSD',
     icon_class='mdi mdi-database-sync',
     groups=(
-        ('Demandsite Data', (
+        ('DemandWSD', (
             PluginMenuItem(
                 link='plugins:netbox_demandsite:demandsite_list',
-                link_text='Sites List',
+                link_text='DemandSites',
                 permissions=['netbox_demandsite.view_demandsite']
             ),
             PluginMenuItem(
                 link='plugins:netbox_demandsite:demandsite_server',
-                link_text='Server',
+                link_text='DemandServer',
                 permissions=['netbox_demandsite.view_demandsite']
             ),
             PluginMenuItem(
                 link='plugins:netbox_demandsite:demandsite_raw',
-                link_text='Raw API Data',
+                link_text='DemandAPIData',
                 permissions=['netbox_demandsite.view_demandsite']
             ),
         )),

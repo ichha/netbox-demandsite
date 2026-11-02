@@ -12,6 +12,18 @@ class NetBoxDemandsiteConfig(PluginConfig):
     default_settings = {
         'api_url': 'https://demandsite.ntc.net.np/api/share/site-dimension',
         'api_token': 'ds_share_7b4a2f8c1e9d3056bf47e382d61a9c8f',
+        'auto_sync_interval': 1440,
     }
+
+    def ready(self):
+        super().ready()
+        try:
+            from . import jobs  # noqa: F401
+        except Exception:
+            pass
+        try:
+            from . import scripts  # noqa: F401
+        except Exception:
+            pass
 
 config = NetBoxDemandsiteConfig

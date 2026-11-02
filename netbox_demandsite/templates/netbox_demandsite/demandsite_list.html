@@ -5,6 +5,17 @@
 
 {% block content %}
 
+<!-- Breadcrumbs -->
+<div class="mb-2">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/">Home</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'plugins:netbox_demandsite:demandsite_list' %}">DemandWSD</a></li>
+            <li class="breadcrumb-item active" aria-current="page">DemandSites</li>
+        </ol>
+    </nav>
+</div>
+
 <!-- Flash Messages Notification Banner -->
 {% if messages %}
     {% for message in messages %}
@@ -150,8 +161,14 @@
                 <button type="button" id="sync-selected-btn" class="btn btn-sm btn-success fw-bold text-white ms-2 px-3" onclick="submitBulkSync()" disabled title="Sync selected sites to NetBox" style="font-size: 0.90rem;">
                     <i class="mdi mdi-sync me-1"></i> Sync Selected (<span id="selected-count">0</span>)
                 </button>
+                <button type="button" class="btn btn-sm btn-outline-success fw-bold ms-2 px-3" onclick="submitSyncAll()" title="Run full 24-hour sync of all Demand Sites now" style="font-size: 0.90rem;">
+                    <i class="mdi mdi-sync-circle me-1"></i> Sync All (24h)
+                </button>
             </div>
             <div class="col-auto ms-auto d-flex align-items-center gap-2">
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-2 fw-semibold" style="font-size: 0.85rem;" title="Auto-Sync runs automatically every 24 hours">
+                    <i class="mdi mdi-clock-check-outline me-1"></i> Auto-Sync: 24h
+                </span>
                 <a href="{% url 'plugins:netbox_demandsite:demandsite_raw' %}" class="btn btn-sm btn-outline-info fw-semibold" title="View Raw Demand Site Data in Table Form" style="font-size: 0.90rem;">
                     <i class="mdi mdi-table me-1"></i> Raw Demand Table
                 </a>
@@ -242,7 +259,7 @@
                             <td class="align-middle text-nowrap" style="padding: 5px 6px;">
                                 {% if site.netbox_site %}
                                     {% if site.status_diff %}
-                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold px-2 py-1" style="font-size: 0.88rem;" title="Status mismatch">
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold text-decoration-underline px-2 py-1" style="font-size: 0.88rem;" title="Status mismatch">
                                             <i class="mdi mdi-alert-circle me-1"></i>{{ site.nb_data.status }}
                                         </span>
                                     {% elif site.nb_data.status == 'Active' or site.nb_data.status == 'active' %}
@@ -280,7 +297,7 @@
                                             </div>
                                         {% endfor %}
                                         {% if site.tech_diff %}
-                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold" style="font-size: 0.76rem;">
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold text-decoration-underline" style="font-size: 0.76rem;">
                                                 <i class="mdi mdi-alert-circle me-1"></i>Mismatch
                                             </span>
                                         {% endif %}
@@ -288,7 +305,7 @@
                                 {% else %}
                                     <span class="text-muted" style="font-size: 0.95rem;">&mdash;</span>
                                     {% if site.tech_diff %}
-                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold d-block mt-1" style="font-size: 0.76rem;">
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-semibold text-decoration-underline d-block mt-1" style="font-size: 0.76rem;">
                                             <i class="mdi mdi-alert-circle me-1"></i>Missing Devices
                                         </span>
                                     {% endif %}
@@ -304,8 +321,8 @@
                                                 <i class="mdi mdi-alert-circle me-1"></i> Value Mismatch
                                             </span>
                                             {% if site.mismatches %}
-                                                <div class="text-danger fw-bold text-center w-100 my-1 lh-sm" style="font-size: 0.76rem;" title="Mismatched parameters">
-                                                    Diff: {{ site.mismatches|join:", " }}
+                                                <div class="text-danger fw-bold text-decoration-underline text-center w-100 my-1 lh-sm" style="font-size: 0.76rem;" title="Mismatched parameters">
+                                                    {{ site.mismatches|join:", " }}
                                                 </div>
                                             {% endif %}
                                             <button type="submit" name="sync_siteid" value="{{ site.api_data.siteid }}" class="btn btn-sm btn-success fw-bold text-white w-100 py-1" style="font-size: 0.85rem;" title="Sync fields to NetBox">
@@ -360,11 +377,11 @@
                             </td>
                             <td class="align-middle text-nowrap" style="padding: 5px 6px;">
                                 {% if site.api_data.status == 'Operational' %}
-                                    <span class="badge {% if site.status_diff %}bg-danger-subtle text-danger border-danger-subtle{% else %}bg-success-subtle text-dark border-success-subtle{% endif %} border fw-semibold px-2 py-1" style="font-size: 0.88rem;">
+                                    <span class="badge {% if site.status_diff %}bg-danger-subtle text-danger border-danger-subtle text-decoration-underline{% else %}bg-success-subtle text-dark border-success-subtle{% endif %} border fw-semibold px-2 py-1" style="font-size: 0.88rem;">
                                         <i class="mdi mdi-check-circle-outline me-1"></i>Operational
                                     </span>
                                 {% else %}
-                                    <span class="badge {% if site.status_diff %}bg-danger-subtle text-danger border-danger-subtle{% else %}bg-secondary-subtle text-dark border-secondary-subtle{% endif %} border fw-semibold px-2 py-1" style="font-size: 0.88rem;">
+                                    <span class="badge {% if site.status_diff %}bg-danger-subtle text-danger border-danger-subtle text-decoration-underline{% else %}bg-secondary-subtle text-dark border-secondary-subtle{% endif %} border fw-semibold px-2 py-1" style="font-size: 0.88rem;">
                                         <i class="mdi mdi-clock-outline me-1"></i>{{ site.api_data.status }}
                                     </span>
                                 {% endif %}
@@ -479,6 +496,21 @@
         }
         actionInput.value = 'sync_selected';
         form.submit();
+    }
+
+    function submitSyncAll() {
+        if (confirm('Start full synchronization of all Demand Sites into NetBox? (Matches the 24-hour background auto-sync schedule)')) {
+            const form = document.getElementById('bulk-sync-form');
+            let actionInput = form.querySelector('input[name="action"]');
+            if (!actionInput) {
+                actionInput = document.createElement('input');
+                actionInput.type = 'hidden';
+                actionInput.name = 'action';
+                form.appendChild(actionInput);
+            }
+            actionInput.value = 'sync_all';
+            form.submit();
+        }
     }
 </script>
 
