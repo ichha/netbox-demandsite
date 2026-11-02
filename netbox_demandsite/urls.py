@@ -5,6 +5,7 @@ urlpatterns = [
     path('', views.DemandsiteListView.as_view(), name='demandsite_list'),
     path('raw/', views.DemandsiteRawView.as_view(), name='demandsite_raw'),
     path('server/', views.DemandsiteServerView.as_view(), name='demandsite_server'),
+    path('logs/', views.DemandsiteLogsView.as_view(), name='demandsite_logs'),
     path('sites/<str:siteid>/', views.DemandsiteDetailView.as_view(), name='demandsite_detail'),
 ]
 

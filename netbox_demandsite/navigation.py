@@ -20,6 +20,11 @@ menu = PluginMenu(
                 link_text='Demand API Data',
                 permissions=['netbox_demandsite.view_demandsite']
             ),
+            PluginMenuItem(
+                link='plugins:netbox_demandsite:demandsite_logs',
+                link_text='Sync Logs',
+                permissions=['netbox_demandsite.view_demandsite']
+            ),
         )),
     )
 )

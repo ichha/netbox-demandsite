@@ -1,0 +1,246 @@
+{% extends 'base/layout.html' %}
+{% load helpers %}
+
+{% block title %}Demand WSD 24-Hour Sync Logs{% endblock %}
+
+{% block content %}
+
+<!-- Breadcrumbs -->
+<div class="mb-2">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/">Home</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'plugins:netbox_demandsite:demandsite_list' %}">Demand WSD</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Sync Logs</li>
+        </ol>
+    </nav>
+</div>
+
+<!-- Header Title Bar -->
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h2 class="fw-bold mb-0 text-dark">
+            <i class="mdi mdi-history text-primary me-2"></i>24-Hour Sync Execution Logs
+        </h2>
+        <div class="text-muted fs-7">Full execution logs for every 24-hour background synchronization run</div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <a href="{% url 'plugins:netbox_demandsite:demandsite_list' %}" class="btn btn-sm btn-outline-primary fw-semibold">
+            <i class="mdi mdi-format-list-bulleted me-1"></i> Demand Sites
+        </a>
+        <a href="{% url 'plugins:netbox_demandsite:demandsite_server' %}" class="btn btn-sm btn-outline-secondary fw-semibold">
+            <i class="mdi mdi-server me-1"></i> Demand Server
+        </a>
+        <a href="?format=json{% if q %}&q={{ q }}{% endif %}" target="_blank" class="btn btn-sm btn-outline-info fw-semibold" title="Export all logs in JSON format">
+            <i class="mdi mdi-code-json me-1"></i> Export JSON
+        </a>
+    </div>
+</div>
+
+<!-- Metric Cards -->
+<div class="row mb-4">
+    <!-- 1. Total Sync Runs -->
+    <div class="col-md-3 col-sm-6 mb-2">
+        <div class="card card-sm bg-body-tertiary shadow-sm border-0">
+            <div class="card-body d-flex align-items-center p-3">
+                <div class="avatar bg-primary text-white p-3 rounded-circle me-3">
+                    <i class="mdi mdi-counter fs-2"></i>
+                </div>
+                <div>
+                    <div class="fs-7 text-muted text-uppercase fw-semibold">Recorded Sync Runs</div>
+                    <div class="fs-2 fw-bold text-primary">{{ total_runs }}</div>
+                    <div class="fs-7 text-muted">Execution history count</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Total Sites Imported -->
+    <div class="col-md-3 col-sm-6 mb-2">
+        <div class="card card-sm bg-body-tertiary shadow-sm border-0">
+            <div class="card-body d-flex align-items-center p-3">
+                <div class="avatar bg-success text-white p-3 rounded-circle me-3">
+                    <i class="mdi mdi-plus-circle-multiple fs-2"></i>
+                </div>
+                <div>
+                    <div class="fs-7 text-muted text-uppercase fw-semibold">New Sites Imported</div>
+                    <div class="fs-2 fw-bold text-success">{{ total_imported }}</div>
+                    <div class="fs-7 text-muted">Across all auto-sync runs</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Last Execution Timestamp -->
+    <div class="col-md-3 col-sm-6 mb-2">
+        <div class="card card-sm bg-body-tertiary shadow-sm border-0">
+            <div class="card-body d-flex align-items-center p-3">
+                <div class="avatar bg-info text-white p-3 rounded-circle me-3">
+                    <i class="mdi mdi-clock-outline fs-2"></i>
+                </div>
+                <div>
+                    <div class="fs-7 text-muted text-uppercase fw-semibold">Last Execution</div>
+                    <div class="fs-4 fw-bold text-dark text-truncate" style="max-width: 170px;">
+                        {% if last_run %}{{ last_run.time|slice:":10" }}{% else %}&mdash;{% endif %}
+                    </div>
+                    <div class="fs-7 text-muted">{% if last_run %}{{ last_run.time|slice:"11:" }}{% else %}No runs yet{% endif %}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Sync Interval -->
+    <div class="col-md-3 col-sm-6 mb-2">
+        <div class="card card-sm bg-body-tertiary shadow-sm border-0">
+            <div class="card-body d-flex align-items-center p-3">
+                <div class="avatar bg-warning text-white p-3 rounded-circle me-3">
+                    <i class="mdi mdi-autorenew fs-2"></i>
+                </div>
+                <div>
+                    <div class="fs-7 text-muted text-uppercase fw-semibold">Auto-Sync Schedule</div>
+                    <div class="fs-3 fw-bold text-dark">Every 24h</div>
+                    <div class="fs-7 text-muted">NetBox worker background job</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search Bar -->
+<div class="card mb-3 shadow-sm border-0">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-center mb-0">
+            <div class="col-auto">
+                <label for="search-input" class="fw-semibold text-muted col-form-label" style="font-size: 0.90rem;">Search Logs:</label>
+            </div>
+            <div class="col-auto flex-grow-1" style="max-width: 420px;">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="mdi mdi-magnify"></i></span>
+                    <input type="text" id="search-input" name="q" class="form-control form-control-sm" style="font-size: 0.90rem;" placeholder="Search run date, summary, or site ID..." value="{{ q }}">
+                    {% if q %}
+                        <a href="?" class="btn btn-sm btn-outline-secondary" title="Clear Search">
+                            <i class="mdi mdi-close"></i>
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-primary fw-semibold px-3" style="font-size: 0.90rem;">Filter</button>
+                {% if q %}
+                    <a href="?" class="btn btn-sm btn-outline-secondary ms-1" style="font-size: 0.90rem;">Reset</a>
+                {% endif %}
+            </div>
+            <div class="col-auto ms-auto">
+                <span class="text-muted small">Showing {{ sync_runs|length }} of {{ total_runs }} recorded sync runs</span>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Sync Runs List -->
+{% if sync_runs %}
+    <div class="d-flex flex-column gap-3 mb-4">
+        {% for run in sync_runs %}
+            <div class="card shadow-sm border-0" style="border: 1px solid #e2e8f0 !important; border-radius: 8px;">
+                <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2 border-bottom">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        {% if run.status == 'success' %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fw-bold" style="font-size: 0.85rem;">
+                                <i class="mdi mdi-check-circle me-1"></i> Success
+                            </span>
+                        {% elif run.status == 'warning' %}
+                            <span class="badge bg-warning-subtle text-dark border border-warning-subtle px-2 py-1 fw-bold" style="font-size: 0.85rem;">
+                                <i class="mdi mdi-alert-circle me-1"></i> Completed with warnings
+                            </span>
+                        {% else %}
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 fw-bold" style="font-size: 0.85rem;">
+                                <i class="mdi mdi-close-circle me-1"></i> Failed
+                            </span>
+                        {% endif %}
+
+                        <span class="font-monospace fw-bold text-dark" style="font-size: 0.92rem;">
+                            <i class="mdi mdi-calendar-clock text-primary me-1"></i> {{ run.time }}
+                        </span>
+
+                        <span class="badge bg-light text-muted border px-2 py-1 small" style="font-size: 0.78rem;">
+                            {{ run.source|default:"24-Hour Auto-Sync (Worker)" }}
+                        </span>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-success-subtle text-success border border-success-subtle fw-semibold px-2 py-1" style="font-size: 0.80rem;">
+                            +{{ run.created|default:0 }} new sites imported
+                        </span>
+                        <span class="badge bg-secondary-subtle text-dark border border-secondary-subtle fw-semibold px-2 py-1" style="font-size: 0.80rem;">
+                            {{ run.skipped|default:0 }} preserved
+                        </span>
+                        <a href="?download={{ run.id }}" class="btn btn-sm btn-outline-secondary py-0 px-2 fw-semibold" style="font-size: 0.80rem;" title="Download raw log text file">
+                            <i class="mdi mdi-download me-1"></i> Download Log
+                        </a>
+                        <button class="btn btn-sm btn-primary py-0 px-2 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#logRun{{ forloop.counter }}" aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}" style="font-size: 0.80rem;">
+                            <i class="mdi mdi-text-box-search me-1"></i> Toggle Logs ({{ run.logs|length }})
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-body p-2 bg-light">
+                    <div class="text-muted small mb-2 px-2">
+                        <strong>Summary:</strong> {{ run.summary }}
+                    </div>
+
+                    <div class="collapse {% if forloop.first %}show{% endif %}" id="logRun{{ forloop.counter }}">
+                        <div class="bg-dark text-light p-3 rounded font-monospace" style="max-height: 320px; overflow-y: auto; font-size: 0.82rem; line-height: 1.5;">
+                            {% if run.logs %}
+                                {% for line in run.logs %}
+                                    <div class="{% if 'ERROR' in line or 'Failed' in line %}text-danger fw-bold{% elif 'Imported' in line or 'Created' in line %}text-success{% else %}text-light{% endif %}">
+                                        <span class="text-secondary select-all me-1">&gt;</span>{{ line }}
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-muted">No log lines recorded for this run.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if paginator.num_pages > 1 %}
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-footer d-flex justify-content-between align-items-center py-2 flex-wrap bg-white">
+                <div class="text-muted fs-7">
+                    Showing {{ sync_runs.start_index }} to {{ sync_runs.end_index }} of {{ total_runs }} runs
+                </div>
+                <ul class="pagination pagination-sm mb-0">
+                    {% if sync_runs.has_previous %}
+                        <li class="page-item"><a class="page-link" href="?page={{ sync_runs.previous_page_number }}{% if q %}&q={{ q }}{% endif %}">Previous</a></li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                    {% endif %}
+                    <li class="page-item active"><span class="page-link">{{ sync_runs.number }}</span></li>
+                    {% if sync_runs.has_next %}
+                        <li class="page-item"><a class="page-link" href="?page={{ sync_runs.next_page_number }}{% if q %}&q={{ q }}{% endif %}">Next</a></li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">Next</span></li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    {% endif %}
+
+{% else %}
+    <div class="card shadow-sm border-0 py-5 text-center text-muted mb-4">
+        <i class="mdi mdi-clipboard-text-clock-outline fs-1 text-primary mb-2"></i>
+        <h5 class="fw-bold text-dark">No 24-Hour Auto-Sync Logs Recorded Yet</h5>
+        <p class="mb-3">The background worker is scheduled to run every 24 hours. Once it runs, all detailed site import logs will appear here.</p>
+        <div>
+            <a href="{% url 'plugins:netbox_demandsite:demandsite_list' %}" class="btn btn-sm btn-primary fw-semibold">
+                <i class="mdi mdi-arrow-left me-1"></i> Go to Demand Sites
+            </a>
+        </div>
+    </div>
+{% endif %}
+
+{% endblock %}

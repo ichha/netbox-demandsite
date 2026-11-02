@@ -127,7 +127,10 @@
                 <i class="mdi mdi-clock-check-outline me-2 text-primary" style="font-size: 20px;"></i>
                 <h5 class="fw-bold mb-0 text-dark">24-Hour Background Auto-Sync Status</h5>
             </div>
-            <div>
+            <div class="d-flex align-items-center gap-2">
+                <a href="{% url 'plugins:netbox_demandsite:demandsite_logs' %}" class="btn btn-sm btn-outline-primary fw-semibold" style="font-size: 12px; border-radius: 20px; padding: 4px 12px;">
+                    <i class="mdi mdi-history me-1"></i> Full Sync Logs
+                </a>
                 <span class="badge" style="background-color: #dcfce7; color: #15803d; border: 1px solid #86efac; border-radius: 20px; padding: 6px 14px; font-size: 12px; font-weight: 700;">
                     <i class="mdi mdi-check-circle me-1"></i> Scheduled (Every 24h)
                 </span>

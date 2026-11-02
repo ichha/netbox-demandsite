@@ -13,7 +13,7 @@ class DemandsiteDailySyncScript(Script):
 
     def run(self, data, commit):
         self.log_info("Starting Demand WSD 24-Hour Auto Sync (Missing Sites)...")
-        result = auto_sync_missing_demand_sites(logger_func=self.log_info)
+        result = auto_sync_missing_demand_sites(source='NetBox Custom Script', logger_func=self.log_info)
         self.log_success(
             f"Auto-Sync finished: {result['created']} new sites imported, "
             f"{result['skipped']} existing sites preserved."

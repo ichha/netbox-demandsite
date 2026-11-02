@@ -53,11 +53,16 @@
                 </span>
                 <span class="text-dark small fw-semibold" style="font-size: 0.85rem;">Last execution: {{ auto_sync_log.time }} &mdash; {{ auto_sync_log.summary }}</span>
             </div>
-            {% if auto_sync_log.logs %}
-                <button class="btn btn-sm btn-outline-secondary py-0 px-2 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#autoSyncLogCollapse" aria-expanded="false" style="font-size: 0.80rem;">
-                    <i class="mdi mdi-text-box-search-outline me-1"></i> View Auto-Sync Logs
-                </button>
-            {% endif %}
+            <div class="d-flex align-items-center gap-2">
+                <a href="{% url 'plugins:netbox_demandsite:demandsite_logs' %}" class="btn btn-sm btn-primary py-0 px-2 fw-semibold" style="font-size: 0.80rem;">
+                    <i class="mdi mdi-open-in-new me-1"></i> Full Sync Logs
+                </a>
+                {% if auto_sync_log.logs %}
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#autoSyncLogCollapse" aria-expanded="false" style="font-size: 0.80rem;">
+                        <i class="mdi mdi-text-box-search-outline me-1"></i> Toggle Logs
+                    </button>
+                {% endif %}
+            </div>
         </div>
         {% if auto_sync_log.logs %}
             <div class="collapse" id="autoSyncLogCollapse">
@@ -208,9 +213,9 @@
                 </button>
             </div>
             <div class="col-auto ms-auto d-flex align-items-center gap-2">
-                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-2 fw-semibold" style="font-size: 0.85rem;" title="Every 24 hours, NetBox checks for sites in Demand that do not exist in NetBox and imports them automatically">
-                    <i class="mdi mdi-clock-check-outline me-1"></i> Auto-Sync: 24h (New Sites)
-                </span>
+                <a href="{% url 'plugins:netbox_demandsite:demandsite_logs' %}" class="btn btn-sm btn-outline-primary fw-semibold" title="View Full 24-Hour Auto-Sync History & Logs" style="font-size: 0.90rem;">
+                    <i class="mdi mdi-history me-1"></i> Sync Logs
+                </a>
                 <a href="{% url 'plugins:netbox_demandsite:demandsite_raw' %}" class="btn btn-sm btn-outline-info fw-semibold" title="View Raw Demand Site Data in Table Form" style="font-size: 0.90rem;">
                     <i class="mdi mdi-table me-1"></i> Raw Demand Table
                 </a>

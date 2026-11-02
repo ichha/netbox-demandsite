@@ -31,7 +31,7 @@ class Command(BaseCommand):
             result = sync_all_demand_sites(logger_func=self.stdout.write)
         else:
             self.stdout.write("Starting 24-Hour Auto-Sync (Importing Demand sites missing in NetBox)...")
-            result = auto_sync_missing_demand_sites(logger_func=self.stdout.write)
+            result = auto_sync_missing_demand_sites(source='CLI manage.py sync_demandsite', logger_func=self.stdout.write)
 
         if 'created' in result:
             msg = f"Done: {result['created']} created, {result.get('skipped', 0)} skipped, {len(result.get('errors', []))} errors."

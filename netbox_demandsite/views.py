@@ -753,7 +753,71 @@ def fetch_demand_api_data():
         return [], str(e), False
 
 
-def auto_sync_missing_demand_sites(logger_func=None):
+def get_sync_log_storage_path():
+    """
+    Returns the path to the persistent JSON file where sync run history is stored.
+    Checks MEDIA_ROOT or plugin directory.
+    """
+    import os
+    from django.conf import settings
+    media_root = getattr(settings, 'MEDIA_ROOT', None)
+    if media_root and os.path.exists(media_root) and os.access(media_root, os.W_OK):
+        return os.path.join(media_root, 'demandsite_sync_history.json')
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_dir, 'demandsite_sync_history.json')
+
+
+def load_sync_run_history():
+    """
+    Loads all recorded sync runs from cache or persistent JSON file.
+    """
+    import json, os
+    from django.core.cache import cache
+    cached = cache.get('demandsite_sync_history')
+    if cached is not None and isinstance(cached, list):
+        return cached
+
+    file_path = get_sync_log_storage_path()
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    cache.set('demandsite_sync_history', data, 86400 * 30)
+                    return data
+        except Exception as e:
+            logger.error(f"Error reading sync history file: {e}")
+    return []
+
+
+def save_sync_run(run_data):
+    """
+    Saves a sync run entry to both memory cache and persistent disk file.
+    Keeps up to the most recent 100 runs.
+    """
+    import json, os
+    from django.core.cache import cache
+    history = load_sync_run_history()
+    if not run_data.get('id'):
+        from django.utils import timezone
+        run_data['id'] = f"run_{timezone.now().strftime('%Y%m%d_%H%M%S')}"
+
+    # Prepend newest first, remove duplicates
+    history = [run_data] + [h for h in history if h.get('id') != run_data.get('id')]
+    history = history[:100]
+
+    cache.set('demandsite_sync_history', history, 86400 * 30)
+    cache.set('demandsite_auto_sync_log', run_data, 86400 * 30)
+
+    try:
+        file_path = get_sync_log_storage_path()
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(history, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logger.error(f"Error saving sync history to disk: {e}")
+
+
+def auto_sync_missing_demand_sites(source='24-Hour Auto-Sync (Worker)', logger_func=None):
     """
     Automated 24-Hour Synchronization:
     Checks which sites exist in Demand API and do NOT exist in NetBox.
@@ -767,20 +831,25 @@ def auto_sync_missing_demand_sites(logger_func=None):
         logger_func = logger.info
 
     now_str = timezone.now().strftime('%Y-%m-%d %H:%M:%S')
-    logger_func(f"[{now_str}] Starting 24-Hour Auto-Sync (Checking Demand sites missing in NetBox)...")
+    logger_func(f"[{now_str}] Starting {source} (Checking Demand sites missing in NetBox)...")
 
     api_sites, api_error, _ = fetch_demand_api_data()
     if api_error and not api_sites:
         err_msg = f"Auto-Sync failed: Could not fetch Demand Site API data ({api_error})"
         logger_func(err_msg)
-        cache.set('demandsite_auto_sync_log', {
+        run_entry = {
+            'id': f"run_{timezone.now().strftime('%Y%m%d_%H%M%S')}",
             'time': now_str,
+            'source': source,
             'summary': f"Failed: {api_error}",
             'created': 0,
             'skipped': 0,
+            'total': 0,
             'logs': [err_msg],
+            'errors': [err_msg],
             'status': 'error'
-        }, 86400 * 3)
+        }
+        save_sync_run(run_entry)
         return {'total': 0, 'created': 0, 'skipped': 0, 'logs': [err_msg], 'errors': [err_msg]}
 
     cf_name = get_site_id_cf_name()
@@ -844,16 +913,19 @@ def auto_sync_missing_demand_sites(logger_func=None):
         summary_text += f" ({len(errors)} errors)"
     logger_func(f"[{now_str}] Auto-Sync finished: {summary_text}")
 
-    # Store last auto-sync result in cache for 7 days so UI can display it
-    cache.set('demandsite_auto_sync_log', {
+    run_entry = {
+        'id': f"run_{timezone.now().strftime('%Y%m%d_%H%M%S')}",
         'time': now_str,
+        'source': source,
         'summary': summary_text,
         'created': created_count,
         'skipped': skipped_count,
         'total': total,
         'logs': sync_logs,
+        'errors': errors,
         'status': 'success' if not errors else 'warning'
-    }, 86400 * 7)
+    }
+    save_sync_run(run_entry)
 
     return {
         'total': total,
@@ -1562,6 +1634,18 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                         'logs': created_logs,
                         'time': now_str
                     }
+                    save_sync_run({
+                        'id': f"run_{timezone.now().strftime('%Y%m%d_%H%M%S')}",
+                        'time': now_str,
+                        'source': f'Web UI ({siteid})',
+                        'summary': f"Created new site {siteid} ({netbox_site.name}) from web dashboard.",
+                        'created': 1,
+                        'skipped': 0,
+                        'total': 1,
+                        'logs': created_logs,
+                        'errors': [],
+                        'status': 'success'
+                    })
                     messages.success(request, f"Successfully created and synchronized site {siteid} ({netbox_site.name}) in NetBox.")
                 else:
                     updated, logs_list = sync_one_site(netbox_site, api_site, cf_name)
@@ -1570,6 +1654,18 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                         'logs': logs_list if logs_list else ["All fields already match external Demand data."],
                         'time': now_str
                     }
+                    save_sync_run({
+                        'id': f"run_{timezone.now().strftime('%Y%m%d_%H%M%S')}",
+                        'time': now_str,
+                        'source': f'Web UI ({siteid})',
+                        'summary': f"Synchronized site {siteid} ({netbox_site.name}) from web dashboard.",
+                        'created': 0,
+                        'skipped': 1 if not updated else 0,
+                        'total': 1,
+                        'logs': logs_list if logs_list else ["All fields already match external Demand data."],
+                        'errors': [],
+                        'status': 'success'
+                    })
                     device_changes = [log for log in logs_list if any(kw in log for kw in ["Device", "Creating", "changed", "created"])]
                     if updated or device_changes:
                         messages.success(request, f"Successfully synchronized fields for {siteid} ({netbox_site.name}) to NetBox.")
@@ -1652,6 +1748,18 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                     'logs': all_selected_logs,
                     'time': now_str
                 }
+                save_sync_run({
+                    'id': f"run_{timezone.now().strftime('%Y%m%d_%H%M%S')}",
+                    'time': now_str,
+                    'source': 'Web UI (Selected Sites)',
+                    'summary': f"Synchronized {success_count} selected sites from web dashboard.",
+                    'created': success_count,
+                    'skipped': 0,
+                    'total': len(siteids),
+                    'logs': all_selected_logs,
+                    'errors': errors,
+                    'status': 'success' if not errors else 'warning'
+                })
                 messages.success(request, f"Successfully synchronized {success_count} sites.")
             if errors:
                 messages.error(request, f"Failed to sync some sites: {', '.join(errors[:5])}")
@@ -1880,4 +1988,76 @@ class DemandsiteRawView(PermissionRequiredMixin, View):
             'q': request.GET.get('q', ''),
         }
         return render(request, self.template_name, context)
+
+
+class DemandsiteLogsView(PermissionRequiredMixin, View):
+    permission_required = 'netbox_demandsite.view_demandsite'
+    template_name = 'netbox_demandsite/demandsite_logs.html'
+    """
+    Dedicated view displaying full logs for every 24-hour sync run,
+    including run history, timestamp, trigger source, imported sites, and step-by-step logs.
+    """
+    def get(self, request):
+        history = load_sync_run_history()
+
+        # Handle raw JSON export
+        if request.GET.get('format') == 'json':
+            return JsonResponse(history, safe=False, json_dumps_params={'indent': 2})
+
+        # Handle download specific run as txt
+        download_id = request.GET.get('download')
+        if download_id:
+            run = next((r for r in history if r.get('id') == download_id), None)
+            if run:
+                from django.http import HttpResponse
+                content = "Demand WSD 24-Hour Sync Execution Log\n"
+                content += f"Run ID: {run.get('id')}\n"
+                content += f"Timestamp: {run.get('time')}\n"
+                content += f"Source: {run.get('source')}\n"
+                content += f"Summary: {run.get('summary')}\n"
+                content += f"Status: {run.get('status')}\n"
+                content += "=" * 70 + "\nExecution Logs:\n"
+                content += "\n".join(run.get('logs', [])) + "\n"
+                response = HttpResponse(content, content_type='text/plain; charset=utf-8')
+                response['Content-Disposition'] = f'attachment; filename="demandsite_sync_{download_id}.txt"'
+                return response
+
+        # Search filter
+        q = request.GET.get('q', '').strip().lower()
+        if q:
+            filtered_history = []
+            for r in history:
+                if (q in r.get('id', '').lower() or
+                    q in r.get('time', '').lower() or
+                    q in r.get('summary', '').lower() or
+                    q in r.get('source', '').lower() or
+                    any(q in log.lower() for log in r.get('logs', []))):
+                    filtered_history.append(r)
+            history = filtered_history
+
+        # Summary statistics
+        total_runs = len(history)
+        total_imported = sum(r.get('created', 0) for r in history)
+        last_run = history[0] if history else None
+
+        from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+        paginator = Paginator(history, 15)
+        page_num = request.GET.get('page', 1)
+        try:
+            paginated_runs = paginator.page(page_num)
+        except PageNotAnInteger:
+            paginated_runs = paginator.page(1)
+        except EmptyPage:
+            paginated_runs = paginator.page(paginator.num_pages)
+
+        context = {
+            'sync_runs': paginated_runs,
+            'paginator': paginator,
+            'total_runs': total_runs,
+            'total_imported': total_imported,
+            'last_run': last_run,
+            'q': request.GET.get('q', ''),
+        }
+        return render(request, self.template_name, context)
+
 
