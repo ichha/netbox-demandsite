@@ -839,16 +839,33 @@ class DemandsiteListView(PermissionRequiredMixin, View):
         BTS_ROLES = {'WSD/BTS/2G', 'WSD/BTS/3G', 'WSD/BTS/4G'}
         SUFFIX_TECH = {'_G': '2g', '_U': '3g', '_L': '4g'}
         try:
-            bts_device_qs = Device.objects.filter(role__name__in=BTS_ROLES).values('site_id', 'name', 'status')
+            bts_device_qs = Device.objects.filter(role__name__in=BTS_ROLES).values(
+                'site_id', 'name', 'status', 'primary_ip4__address'
+            )
             for d in bts_device_qs:
+                ip_addr = d.get('primary_ip4__address')
+                d['ip'] = str(ip_addr).split('/')[0] if ip_addr else ''
                 site_devices_map[d['site_id']].append(d)
         except Exception:
             try:
-                bts_device_qs = Device.objects.filter(device_role__name__in=BTS_ROLES).values('site_id', 'name', 'status')
+                bts_device_qs = Device.objects.filter(device_role__name__in=BTS_ROLES).values(
+                    'site_id', 'name', 'status', 'primary_ip4__address'
+                )
                 for d in bts_device_qs:
+                    ip_addr = d.get('primary_ip4__address')
+                    d['ip'] = str(ip_addr).split('/')[0] if ip_addr else ''
                     site_devices_map[d['site_id']].append(d)
             except Exception:
-                pass
+                try:
+                    bts_device_qs = Device.objects.filter(role__name__in=BTS_ROLES).values('site_id', 'name', 'status')
+                    for d in bts_device_qs:
+                        d['ip'] = ''
+                        site_devices_map[d['site_id']].append(d)
+                except Exception:
+                    bts_device_qs = Device.objects.filter(device_role__name__in=BTS_ROLES).values('site_id', 'name', 'status')
+                    for d in bts_device_qs:
+                        d['ip'] = ''
+                        site_devices_map[d['site_id']].append(d)
             
         correlated_sites = []
         total_mismatch = 0
@@ -941,7 +958,7 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                     nb_site_name = matched_site.custom_field_data.get('site_name')
                 
                 devs_for_site = site_devices_map.get(matched_site.id, [])
-                nb_devices_list = [{'name': d['name'], 'status': d['status']} for d in devs_for_site]
+                nb_devices_list = [{'name': d['name'], 'status': d['status'], 'ip': d.get('ip', '')} for d in devs_for_site]
                 
                 nb_data = {
                     'site_id': nb_cf_site_id,
@@ -1143,6 +1160,26 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                     q not in palika):
                     continue
                     
+            mismatches = []
+            if siteid_diff or name_diff:
+                mismatches.append('Name')
+            if region_diff:
+                mismatches.append('Province')
+            if district_diff:
+                mismatches.append('District')
+            if palika_diff:
+                mismatches.append('Palika')
+            if local_level_diff:
+                mismatches.append('Type')
+            if ward_diff:
+                mismatches.append('Ward')
+            if lat_diff or lon_diff:
+                mismatches.append('Coordinates')
+            if status_diff:
+                mismatches.append('Status')
+            if tech_diff:
+                mismatches.append('Technology')
+
             diffs = {
                 'siteid': siteid_diff,
                 'name': name_diff,
@@ -1165,6 +1202,8 @@ class DemandsiteListView(PermissionRequiredMixin, View):
                 'has_mismatch': has_mismatch,
                 'needs_sync': needs_sync,
                 'diffs': diffs,
+                'mismatches': mismatches,
+                'mismatch_summary': ', '.join(mismatches),
                 'siteid_diff': siteid_diff,
                 'name_diff': name_diff,
                 'region_diff': region_diff,
