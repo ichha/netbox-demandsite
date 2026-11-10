@@ -753,46 +753,75 @@ def fetch_demand_api_data():
         return [], str(e), False
 
 
-def get_sync_log_storage_path():
+def get_candidate_sync_log_paths():
     """
-    Returns the path to the persistent JSON file where sync run history is stored.
-    Checks MEDIA_ROOT or plugin directory.
+    Returns candidate file paths for persistent sync history storage.
+    Ordered by preference: MEDIA_ROOT, plugin directory, system temp.
     """
     import os
+    import tempfile
     from django.conf import settings
+    paths = []
+
     media_root = getattr(settings, 'MEDIA_ROOT', None)
-    if media_root and os.path.exists(media_root) and os.access(media_root, os.W_OK):
-        return os.path.join(media_root, 'demandsite_sync_history.json')
+    if media_root:
+        paths.append(os.path.join(media_root, 'demandsite_sync_history.json'))
+
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_dir, 'demandsite_sync_history.json')
+    paths.append(os.path.join(base_dir, 'demandsite_sync_history.json'))
+
+    paths.append(os.path.join(tempfile.gettempdir(), 'demandsite_sync_history.json'))
+    return paths
+
+
+def get_sync_log_storage_path():
+    """
+    Returns the primary writable path to the persistent JSON file where sync run history is stored.
+    """
+    import os
+    for p in get_candidate_sync_log_paths():
+        try:
+            if os.path.exists(p):
+                if os.access(p, os.W_OK):
+                    return p
+            else:
+                d = os.path.dirname(p)
+                if os.path.exists(d) and os.access(d, os.W_OK):
+                    return p
+        except Exception:
+            continue
+    import tempfile
+    return os.path.join(tempfile.gettempdir(), 'demandsite_sync_history.json')
 
 
 def load_sync_run_history():
     """
     Loads all recorded sync runs from cache or persistent JSON file.
+    Checks memory cache first, then checks candidate storage paths.
     """
     import json, os
     from django.core.cache import cache
     cached = cache.get('demandsite_sync_history')
-    if cached is not None and isinstance(cached, list):
+    if cached is not None and isinstance(cached, list) and len(cached) > 0:
         return cached
 
-    file_path = get_sync_log_storage_path()
-    if os.path.exists(file_path):
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                if isinstance(data, list):
-                    cache.set('demandsite_sync_history', data, 86400 * 30)
-                    return data
-        except Exception as e:
-            logger.error(f"Error reading sync history file: {e}")
+    for file_path in get_candidate_sync_log_paths():
+        if os.path.exists(file_path):
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    if isinstance(data, list) and len(data) > 0:
+                        cache.set('demandsite_sync_history', data, 86400 * 30)
+                        return data
+            except Exception as e:
+                logger.error(f"Error reading sync history file at {file_path}: {e}")
     return []
 
 
 def save_sync_run(run_data):
     """
-    Saves a sync run entry to both memory cache and persistent disk file.
+    Saves a sync run entry to both memory cache and persistent disk files.
+    Tries multiple candidate paths to guarantee persistence even if permissions differ.
     Keeps up to the most recent 100 runs.
     """
     import json, os
@@ -809,12 +838,17 @@ def save_sync_run(run_data):
     cache.set('demandsite_sync_history', history, 86400 * 30)
     cache.set('demandsite_auto_sync_log', run_data, 86400 * 30)
 
-    try:
-        file_path = get_sync_log_storage_path()
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(history, f, indent=2, ensure_ascii=False)
-    except Exception as e:
-        logger.error(f"Error saving sync history to disk: {e}")
+    saved_to_disk = False
+    for file_path in get_candidate_sync_log_paths():
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(history, f, indent=2, ensure_ascii=False)
+            saved_to_disk = True
+        except Exception as e:
+            logger.debug(f"Could not save sync history to {file_path}: {e}")
+
+    if not saved_to_disk:
+        logger.warning("Could not persist sync history to any disk location; saved to cache only.")
 
 
 def auto_sync_missing_demand_sites(source='24-Hour Auto-Sync (Worker)', logger_func=None):
@@ -824,19 +858,27 @@ def auto_sync_missing_demand_sites(source='24-Hour Auto-Sync (Worker)', logger_f
     If so, creates and synchronizes them into NetBox with basic site data and BTS devices.
     Sites that already exist in NetBox are left untouched.
     """
+    import time
     from django.core.cache import cache
     from django.utils import timezone
 
     if logger_func is None:
         logger_func = logger.info
 
+    start_ts = time.time()
     now_str = timezone.now().strftime('%Y-%m-%d %H:%M:%S')
     logger_func(f"[{now_str}] Starting {source} (Checking Demand sites missing in NetBox)...")
+
+    sync_logs = [
+        f"[{now_str}] Auto-Sync execution initiated via {source}.",
+        "Connecting to Demand Site API...",
+    ]
 
     api_sites, api_error, _ = fetch_demand_api_data()
     if api_error and not api_sites:
         err_msg = f"Auto-Sync failed: Could not fetch Demand Site API data ({api_error})"
         logger_func(err_msg)
+        sync_logs.append(f"ERROR: {err_msg}")
         run_entry = {
             'id': f"run_{timezone.now().strftime('%Y%m%d_%H%M%S')}",
             'time': now_str,
@@ -845,19 +887,21 @@ def auto_sync_missing_demand_sites(source='24-Hour Auto-Sync (Worker)', logger_f
             'created': 0,
             'skipped': 0,
             'total': 0,
-            'logs': [err_msg],
+            'logs': sync_logs,
             'errors': [err_msg],
             'status': 'error'
         }
         save_sync_run(run_entry)
-        return {'total': 0, 'created': 0, 'skipped': 0, 'logs': [err_msg], 'errors': [err_msg]}
+        return {'total': 0, 'created': 0, 'skipped': 0, 'logs': sync_logs, 'errors': [err_msg]}
 
     cf_name = get_site_id_cf_name()
     total = len(api_sites)
     created_count = 0
     skipped_count = 0
-    sync_logs = []
     errors = []
+
+    sync_logs.append(f"Successfully retrieved {total:,} sites from Demand Site API.")
+    sync_logs.append(f"Scanning NetBox database for missing sites (Site ID field: '{cf_name}')...")
 
     for item in api_sites:
         siteid = str(item.get('siteid') or '').strip()
@@ -907,6 +951,15 @@ def auto_sync_missing_demand_sites(source='24-Hour Auto-Sync (Worker)', logger_f
             logger_func(f"Auto-Sync error: {err}")
             errors.append(err)
             sync_logs.append(f"ERROR on {siteid}: {str(e)}")
+
+    if created_count > 0:
+        sync_logs.append(f"Import Summary: Successfully imported {created_count} missing site(s) into NetBox with BTS devices.")
+    else:
+        sync_logs.append(f"Verification complete: All {total:,} Demand sites already exist in NetBox.")
+        sync_logs.append(f"No missing sites found. {skipped_count:,} existing NetBox sites were preserved untouched.")
+
+    elapsed = round(time.time() - start_ts, 2)
+    sync_logs.append(f"Auto-Sync execution completed in {elapsed}s with {len(errors)} error(s).")
 
     summary_text = f"Checked {total} Demand sites: {created_count} missing sites imported into NetBox, {skipped_count} existing sites preserved."
     if errors:
@@ -1997,6 +2050,24 @@ class DemandsiteLogsView(PermissionRequiredMixin, View):
     Dedicated view displaying full logs for every 24-hour sync run,
     including run history, timestamp, trigger source, imported sites, and step-by-step logs.
     """
+    def post(self, request):
+        action = request.POST.get('action')
+        if action == 'run_sync':
+            user_name = request.user.username if (hasattr(request, 'user') and request.user.is_authenticated) else 'Admin'
+            result = auto_sync_missing_demand_sites(source=f"Web UI Manual ({user_name})")
+            if result.get('errors'):
+                messages.warning(
+                    request,
+                    f"Auto-Sync executed with warnings: {result['created']} missing sites imported, {result['skipped']} preserved out of {result['total']} Demand sites."
+                )
+            else:
+                messages.success(
+                    request,
+                    f"Auto-Sync executed: {result['created']} missing sites imported into NetBox, {result['skipped']} existing sites preserved out of {result['total']} Demand sites."
+                )
+            return redirect('plugins:netbox_demandsite:demandsite_logs')
+        return redirect('plugins:netbox_demandsite:demandsite_logs')
+
     def get(self, request):
         history = load_sync_run_history()
 

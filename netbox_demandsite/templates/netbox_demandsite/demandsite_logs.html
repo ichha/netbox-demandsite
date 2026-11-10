@@ -25,6 +25,13 @@
         <div class="text-muted fs-7">Full execution logs for every 24-hour background synchronization run</div>
     </div>
     <div class="d-flex align-items-center gap-2">
+        <form method="post" action="{% url 'plugins:netbox_demandsite:demandsite_logs' %}" class="d-inline" onsubmit="return confirm('Run 24-Hour Auto-Sync now? It will check the Demand API for any missing sites and import them into NetBox.');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="run_sync">
+            <button type="submit" class="btn btn-sm btn-success fw-semibold shadow-sm">
+                <i class="mdi mdi-play-circle-outline me-1"></i> Run Auto-Sync Now
+            </button>
+        </form>
         <a href="{% url 'plugins:netbox_demandsite:demandsite_list' %}" class="btn btn-sm btn-outline-primary fw-semibold">
             <i class="mdi mdi-format-list-bulleted me-1"></i> Demand Sites
         </a>
