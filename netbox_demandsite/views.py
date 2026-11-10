@@ -794,28 +794,150 @@ def get_sync_log_storage_path():
     return os.path.join(tempfile.gettempdir(), 'demandsite_sync_history.json')
 
 
+def get_netbox_system_job_runs():
+    """
+    Directly retrieves Demand WSD system job execution records from NetBox's database.
+    This guarantees that every executed job is displayed in Sync Logs,
+    even if disk write permissions failed or cache expired.
+    """
+    job_entries = []
+
+    # 1. NetBox v4 Job model (core.models.Job)
+    try:
+        from core.models import Job
+        qs = Job.objects.filter(name="Demand WSD 24-Hour Auto Sync").exclude(status="scheduled").order_by('-created')
+        for j in qs[:50]:
+            started_time = j.started or j.created
+            time_str = started_time.strftime('%Y-%m-%d %H:%M:%S') if started_time else '—'
+            data = j.data if isinstance(j.data, dict) else {}
+            created_cnt = data.get('created', 0)
+            skipped_cnt = data.get('skipped', 0)
+            total_cnt = data.get('total', 0)
+            logs = data.get('logs', [])
+            errors = data.get('errors', [])
+            summary = data.get('summary')
+
+            if not summary:
+                if total_cnt or created_cnt or skipped_cnt:
+                    summary = f"Checked {total_cnt} Demand sites: {created_cnt} missing sites imported into NetBox, {skipped_cnt} existing sites preserved."
+                else:
+                    summary = f"Demand WSD 24-Hour Auto Sync: Job #{j.id} completed."
+
+            if not logs:
+                logs = [
+                    f"[{time_str}] Executed NetBox System Job #{j.id} ({j.name}).",
+                    f"Status: {str(j.status).capitalize()}.",
+                ]
+                if total_cnt or skipped_cnt or created_cnt:
+                    logs.append(f"Demand Sites checked: {total_cnt}. Missing sites imported: {created_cnt}. Existing sites preserved: {skipped_cnt}.")
+                if j.completed and j.started:
+                    duration = (j.completed - j.started).total_seconds()
+                    logs.append(f"Job execution completed in {duration:.1f}s.")
+
+            status_str = 'success'
+            if j.status in ('errored', 'failed'):
+                status_str = 'danger'
+            elif j.status == 'running':
+                status_str = 'warning'
+
+            job_entries.append({
+                'id': f"job_{j.id}",
+                'job_id': j.id,
+                'time': time_str,
+                'source': f"24-Hour Auto-Sync (Worker #{j.id})",
+                'summary': summary,
+                'created': created_cnt,
+                'skipped': skipped_cnt,
+                'total': total_cnt,
+                'logs': logs,
+                'errors': errors,
+                'status': status_str
+            })
+        return job_entries
+    except Exception as e:
+        logger.debug(f"Could not load jobs from core.models.Job: {e}")
+
+    # 2. NetBox v3 JobResult model (extras.models.JobResult) fallback
+    try:
+        from extras.models import JobResult
+        qs = JobResult.objects.filter(name__icontains="Demand WSD").exclude(status="pending").order_by('-created')
+        for j in qs[:50]:
+            time_str = j.created.strftime('%Y-%m-%d %H:%M:%S') if j.created else '—'
+            data = j.data if isinstance(j.data, dict) else {}
+            created_cnt = data.get('created', 0)
+            skipped_cnt = data.get('skipped', 0)
+            total_cnt = data.get('total', 0)
+            logs = data.get('logs', [f"Executed Job #{j.id}. Status: {j.status}."])
+            job_entries.append({
+                'id': f"job_{j.id}",
+                'job_id': j.id,
+                'time': time_str,
+                'source': f"24-Hour Auto-Sync (Worker #{j.id})",
+                'summary': f"Demand WSD 24-Hour Auto Sync: {created_cnt} imported, {skipped_cnt} preserved.",
+                'created': created_cnt,
+                'skipped': skipped_cnt,
+                'total': total_cnt,
+                'logs': logs,
+                'errors': data.get('errors', []),
+                'status': 'success' if j.status == 'completed' else 'warning'
+            })
+        return job_entries
+    except Exception as e:
+        logger.debug(f"Could not load jobs from extras.models.JobResult: {e}")
+
+    return []
+
+
 def load_sync_run_history():
     """
-    Loads all recorded sync runs from cache or persistent JSON file.
-    Checks memory cache first, then checks candidate storage paths.
+    Loads all recorded sync runs.
+    Merges:
+      1. Official NetBox system job runs from the PostgreSQL database (core.models.Job)
+      2. File / cache recorded runs (manual UI triggers, CLI commands, etc.)
+    Deduplicates and sorts newest-first.
     """
     import json, os
     from django.core.cache import cache
-    cached = cache.get('demandsite_sync_history')
-    if cached is not None and isinstance(cached, list) and len(cached) > 0:
-        return cached
 
-    for file_path in get_candidate_sync_log_paths():
-        if os.path.exists(file_path):
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    if isinstance(data, list) and len(data) > 0:
-                        cache.set('demandsite_sync_history', data, 86400 * 30)
-                        return data
-            except Exception as e:
-                logger.error(f"Error reading sync history file at {file_path}: {e}")
-    return []
+    # 1. Fetch runs directly from NetBox database (PostgreSQL)
+    db_runs = get_netbox_system_job_runs()
+
+    # 2. Fetch runs from memory cache or JSON files
+    disk_or_cache_runs = []
+    cached = cache.get('demandsite_sync_history')
+    if cached is not None and isinstance(cached, list):
+        disk_or_cache_runs = cached
+    else:
+        for file_path in get_candidate_sync_log_paths():
+            if os.path.exists(file_path):
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        if isinstance(data, list) and len(data) > 0:
+                            disk_or_cache_runs = data
+                            break
+                except Exception as e:
+                    logger.error(f"Error reading sync history file at {file_path}: {e}")
+
+    # 3. Merge both lists, deduplicating
+    combined = []
+    seen_times = set()
+
+    for run in db_runs + disk_or_cache_runs:
+        run_time = str(run.get('time', '')).strip()[:16] # Group within minute
+        run_id = str(run.get('id', '')).strip()
+
+        key = run_id if (run_id and not run_id.startswith('run_')) else run_time
+        if key and key in seen_times:
+            continue
+        if key:
+            seen_times.add(key)
+        if run_time:
+            seen_times.add(run_time)
+        combined.append(run)
+
+    combined.sort(key=lambda x: str(x.get('time', '')), reverse=True)
+    return combined[:100]
 
 
 def save_sync_run(run_data):
